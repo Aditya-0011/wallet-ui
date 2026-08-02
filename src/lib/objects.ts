@@ -1,0 +1,221 @@
+import BigNumber from "bignumber.js";
+
+import { type RankingInfo } from "@tanstack/match-sorter-utils";
+import { type FilterFn } from "@tanstack/react-table";
+import { z } from "zod";
+
+export const RequestMethodSchema = z.enum(["GET", "POST", "QUERY"]);
+export type RequestMethod = z.infer<typeof RequestMethodSchema>;
+
+export const ServiceListSchema = z.enum(["auth", "wallet"]);
+export type ServiceList = z.infer<typeof ServiceListSchema>;
+
+export const ServiceApiMappingSchema = z.record(ServiceListSchema, z.string());
+export type ServiceApiMapping = z.infer<typeof ServiceApiMappingSchema>;
+
+export const GrpcDecimalSchema = z.object({
+  value: z.string(),
+});
+export type GrpcDecimal = z.infer<typeof GrpcDecimalSchema>;
+
+export const GrpcTimeSchema = z.object({
+  seconds: z.number(),
+  nanos: z.number(),
+});
+export type GrpcTime = z.infer<typeof GrpcTimeSchema>;
+
+export const SimpleResponseSchema = z.object({
+  message: z.string().trim(),
+});
+export type SimpleResponse = z.infer<typeof SimpleResponseSchema>;
+
+export const DeleteRequestSchema = z.object({
+  id: z.number(),
+});
+export type DeleteRequest = z.infer<typeof DeleteRequestSchema>;
+
+export const UserSummaryResponseSchema = z.object({
+  all_income: GrpcDecimalSchema,
+  all_expense: GrpcDecimalSchema,
+  month_income: GrpcDecimalSchema,
+  month_expense: GrpcDecimalSchema,
+  week_income: GrpcDecimalSchema,
+  week_expense: GrpcDecimalSchema,
+  start_date: GrpcTimeSchema,
+});
+export type UserSummaryResponse = z.infer<typeof UserSummaryResponseSchema>;
+
+export const CategoryType = {
+  Unspecified: 0,
+  Income: 1,
+  Expense: 2,
+} as const;
+
+export type CategoryType = (typeof CategoryType)[keyof typeof CategoryType];
+
+export const CategoryTypeSchema = z.union(
+  [
+    z.literal(CategoryType.Unspecified),
+    z.literal(CategoryType.Income),
+    z.literal(CategoryType.Expense),
+  ],
+  { error: "Invalid category type" },
+);
+
+export const getCategoryTypeLabel = (categoryType: CategoryType): string => {
+  switch (categoryType) {
+    case CategoryType.Income:
+      return "Income";
+    case CategoryType.Expense:
+      return "Expense";
+    default:
+      return "Unspecified";
+  }
+};
+
+export const CategorySchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  icon: z.emoji(),
+  type: CategoryTypeSchema,
+  created_at: GrpcTimeSchema,
+  updated_at: GrpcTimeSchema,
+});
+export type Category = z.infer<typeof CategorySchema>;
+
+export const CategorySummarySchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  icon: z.emoji(),
+  type: CategoryTypeSchema,
+});
+export type CategorySummary = z.infer<typeof CategorySummarySchema>;
+
+export const GetCategoriesResponseSchema = z.object({
+  categories: z.array(CategorySchema),
+});
+export type GetCategoriesResponse = z.infer<typeof GetCategoriesResponseSchema>;
+
+export const CreateCategoryRequestSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, { error: "Name is required" })
+    .max(255, "Name can be at most 255 characters long"),
+  icon: z.emoji("Invalid emoji").trim(),
+  type: CategoryTypeSchema,
+});
+export type CreateCategoryRequest = z.infer<typeof CreateCategoryRequestSchema>;
+
+export const UpdateCategoryRequestSchema = z.object({
+  id: z.number(),
+  name: z
+    .string()
+    .trim()
+    .min(1, { error: "Name is required" })
+    .max(255, "Name can be at most 255 characters long"),
+  icon: z.emoji("Invalid emoji").trim(),
+
+  type: CategoryTypeSchema,
+});
+export type UpdateCategoryRequest = z.infer<typeof UpdateCategoryRequestSchema>;
+
+export const TransactionSchema = z.object({
+  id: z.number(),
+  description: z.string(),
+  amount: GrpcDecimalSchema,
+  category: CategorySummarySchema,
+  created_at: GrpcTimeSchema,
+  updated_at: GrpcTimeSchema,
+});
+export type Transaction = z.infer<typeof TransactionSchema>;
+
+export const GetTransactionsResponseSchema = z.object({
+  transactions: z.array(TransactionSchema),
+});
+export type GetTransactionsResponse = z.infer<
+  typeof GetTransactionsResponseSchema
+>;
+
+export const GetTransactionsRequestSchema = z
+  .object({
+    limit: z.number().gt(0, { message: "Invalid limit" }),
+    page: z.number().gt(0, { message: "Invalid page" }),
+    type: CategoryTypeSchema.optional(),
+    category_id: z.number().gt(0, { message: "Invalid category" }).optional(),
+    start_date: GrpcTimeSchema.optional(),
+    end_date: GrpcTimeSchema.optional(),
+  })
+  .refine(
+    (data) => {
+      if (!data.start_date || !data.end_date) return true;
+      const start = data.start_date.seconds + data.start_date.nanos / 1e9;
+      const end = data.end_date.seconds + data.end_date.nanos / 1e9;
+      return end >= start;
+    },
+    {
+      message: "end date must be after or equal to start date",
+      path: ["end_date"],
+    },
+  );
+export type GetTransactionsRequest = z.infer<
+  typeof GetTransactionsRequestSchema
+>;
+
+export const CreateTransactionRequestSchema = z.object({
+  category_id: z
+    .number({ error: "Category is required" })
+    .gt(0, { error: "Invalid category" }),
+  description: z
+    .string()
+    .trim()
+    .min(1, { error: "Description is required" })
+    .max(255, "Description can be at most 255 characters long"),
+  amount: GrpcDecimalSchema.refine((val) => new BigNumber(val.value).gt(0), {
+    message: "Amount must be greater than zero",
+  }),
+});
+export type CreateTransactionRequest = z.infer<
+  typeof CreateTransactionRequestSchema
+>;
+
+export const UpdateTransactionRequestSchema = z.object({
+  id: z.number(),
+  category_id: z
+    .number({ error: "Category is required" })
+    .gt(0, { error: "Invalid Category" }),
+  description: z
+    .string()
+    .trim()
+    .min(1, { error: "Description is required" })
+    .max(255, "Description can be at most 255 characters long"),
+  amount: GrpcDecimalSchema.refine((val) => new BigNumber(val.value).gt(0), {
+    message: "Amount must be greater than zero",
+  }),
+});
+export type UpdateTransactionRequest = z.infer<
+  typeof UpdateTransactionRequestSchema
+>;
+
+export class FetchError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+declare module "luxon" {
+  interface DateTime {
+    toGrpcTime(): GrpcTime;
+  }
+}
+
+declare module "@tanstack/react-table" {
+  interface FilterFns {
+    fuzzy: FilterFn<unknown>;
+  }
+  interface FilterMeta {
+    itemRank: RankingInfo;
+  }
+}
