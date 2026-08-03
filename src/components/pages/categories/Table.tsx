@@ -1,5 +1,31 @@
-import { useEffect, useMemo, useState } from "react";
-
+import { Delete } from "@/components/pages/Delete";
+import { Form } from "@/components/pages/categories/Form";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Table as TableTag,
+} from "@/components/ui/table";
+import {
+  type Category,
+  type DeleteRequest,
+  type SimpleResponse,
+  type UpdateCategoryRequest,
+  CategoryType,
+  getCategoryTypeLabel,
+} from "@/lib/objects";
+import { cn, formatDate } from "@/lib/utils";
 import {
   type RankingInfo,
   compareItems,
@@ -21,38 +47,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { ArrowRightLeft, ArrowUpDown, Filter, Search } from "lucide-react";
-
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-
-import { cn, formatDate } from "@/lib/utils";
-
-import {
-  type Category,
-  type DeleteRequest,
-  type SimpleResponse,
-  type UpdateCategoryRequest,
-  CategoryType,
-  getCategoryTypeLabel,
-} from "@/lib/objects";
-
-import { Delete } from "@/components/pages/Delete";
-import { Form } from "@/components/pages/categories/Form";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useEffect, useMemo, useState } from "react";
 
 const fuzzyFilter: FilterFn<Category> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value);
@@ -202,7 +197,7 @@ type CategoriesTableProps = {
   deleteAsync: (req: DeleteRequest) => Promise<SimpleResponse>;
 };
 
-export function CategoriesTable({
+export function Table({
   categories,
   isUpdating,
   isDeleting,
@@ -212,6 +207,13 @@ export function CategoriesTable({
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [showUpdated, setShowUpdated] = useState(false);
+
+  type CategoriesTableMeta = {
+    isUpdating: boolean;
+    isDeleting: boolean;
+    updateAsync: (req: UpdateCategoryRequest) => Promise<SimpleResponse>;
+    deleteAsync: (req: DeleteRequest) => Promise<SimpleResponse>;
+  };
 
   const columns = useMemo<ColumnDef<Category>[]>(
     () => [
@@ -329,33 +331,40 @@ export function CategoriesTable({
       {
         id: "actions",
         header: () => <div className="pr-2 text-right">Actions</div>,
-        cell: ({ row }) => {
+        cell: ({ row, table }) => {
+          const meta = table.options.meta as CategoriesTableMeta;
           return (
             <div className="flex justify-end gap-1 pr-2">
               <Form
                 data={row.original}
-                isUpdating={isUpdating}
-                mutateAsync={updateAsync}
+                isUpdating={meta.isUpdating}
+                mutateAsync={meta.updateAsync}
               />
               <Delete
                 id={row.original.id}
                 description="This action cannot be undone. This will delete the category"
                 name={row.original.name}
-                isDeleting={isDeleting}
-                mutateAsync={deleteAsync}
+                isDeleting={meta.isDeleting}
+                mutateAsync={meta.deleteAsync}
               />
             </div>
           );
         },
       },
     ],
-    [showUpdated, deleteAsync, isDeleting, isUpdating, updateAsync],
+    [showUpdated],
   );
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: categories,
     columns,
+    meta: {
+      isUpdating,
+      isDeleting,
+      updateAsync,
+      deleteAsync,
+    },
     filterFns: {
       fuzzy: fuzzyFilter,
     },
@@ -391,7 +400,7 @@ export function CategoriesTable({
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-xl border border-white/10 bg-neutral-950/20 shadow-sm backdrop-blur">
-        <Table>
+        <TableTag>
           <colgroup>
             <col className="w-[10%]" />
             <col className="w-[30%]" />
@@ -447,7 +456,7 @@ export function CategoriesTable({
               </TableRow>
             )}
           </TableBody>
-        </Table>
+        </TableTag>
       </div>
 
       <div className="flex items-center justify-end space-x-2">

@@ -1,10 +1,3 @@
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type QueryKey,
-} from "@tanstack/react-query";
-
 import { useAuth } from "@/contexts/AuthContext";
 import {
   FetchError,
@@ -12,6 +5,12 @@ import {
   type ServiceApiMapping,
   type ServiceList,
 } from "@/lib/objects";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryKey,
+} from "@tanstack/react-query";
 import { toast } from "sonner";
 
 const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL;
@@ -77,9 +76,17 @@ export function useDataQuery<Request, Response>(
   const { logout } = useAuth();
 
   return useQuery<Response, Error>({
-    queryKey: options?.variables
-      ? [...key, options.variables, url, app, textOnlyResponse]
-      : [...key, url, app, textOnlyResponse],
+    queryKey:
+      options?.variables && options?.isQuery
+        ? [
+            ...key,
+            options.variables,
+            options.isQuery,
+            url,
+            app,
+            textOnlyResponse,
+          ]
+        : [...key, url, app, textOnlyResponse],
     queryFn: () =>
       fetcher<Request, Response>(
         app,
@@ -125,7 +132,7 @@ export function useDataMutation<Request, Response>(
   const queryClient = useQueryClient();
   const { logout } = useAuth();
 
-  return useMutation<Response, FetchError, Request>({
+  const mutation = useMutation<Response, FetchError, Request>({
     mutationFn: (variables) =>
       fetcher<Request, Response>(app, url, variables, "POST", textOnlyResponse),
     onSuccess: (data) => {
@@ -149,4 +156,12 @@ export function useDataMutation<Request, Response>(
       }
     },
   });
+
+  return {
+    ...mutation,
+    isError:
+      mutation.isError &&
+      mutation.error?.status !== 409 &&
+      mutation.error?.status !== 412,
+  };
 }

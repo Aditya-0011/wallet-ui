@@ -1,21 +1,17 @@
-import { useEffect } from "react";
-import { Outlet, useSearchParams } from "react-router";
-
-import { Toaster } from "sonner";
-
 import { useDataQuery } from "@/api/handler";
-import { useAuth } from "@/contexts/AuthContext";
-import { type UserSummaryResponse } from "@/lib/objects";
-
 import { Loading } from "@/components/Loading";
 import { Navigation } from "@/components/Navigation";
-
 import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useAuth } from "@/contexts/AuthContext";
+import { type UserSummaryResponse } from "@/lib/objects";
+import { useEffect } from "react";
+import { Outlet, useSearchParams } from "react-router";
+import { Toaster } from "sonner";
 
 const CONSOLE_URL = import.meta.env.VITE_CONSOLE_URL;
 

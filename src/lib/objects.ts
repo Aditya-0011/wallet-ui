@@ -1,7 +1,6 @@
-import BigNumber from "bignumber.js";
-
 import { type RankingInfo } from "@tanstack/match-sorter-utils";
 import { type FilterFn } from "@tanstack/react-table";
+import BigNumber from "bignumber.js";
 import { z } from "zod";
 
 export const RequestMethodSchema = z.enum(["GET", "POST", "QUERY"]);
@@ -101,8 +100,8 @@ export const CreateCategoryRequestSchema = z.object({
     .string()
     .trim()
     .min(1, { error: "Name is required" })
-    .max(255, "Name can be at most 255 characters long"),
-  icon: z.emoji("Invalid emoji").trim(),
+    .max(255, { error: "Name can be at most 255 characters long" }),
+  icon: z.emoji({ error: "Invalid emoji" }).trim(),
   type: CategoryTypeSchema,
 });
 export type CreateCategoryRequest = z.infer<typeof CreateCategoryRequestSchema>;
@@ -113,8 +112,8 @@ export const UpdateCategoryRequestSchema = z.object({
     .string()
     .trim()
     .min(1, { error: "Name is required" })
-    .max(255, "Name can be at most 255 characters long"),
-  icon: z.emoji("Invalid emoji").trim(),
+    .max(255, { error: "Name can be at most 255 characters long" }),
+  icon: z.emoji({ error: "Invalid emoji" }).trim(),
 
   type: CategoryTypeSchema,
 });
@@ -137,24 +136,52 @@ export type GetTransactionsResponse = z.infer<
   typeof GetTransactionsResponseSchema
 >;
 
+export const TransactionsUpdateHistorySchema = z.object({
+  id: z.number(),
+  previous_category: CategorySummarySchema,
+  current_category: CategorySummarySchema,
+  previous_description: z.string(),
+  current_description: z.string(),
+  previous_amount: GrpcDecimalSchema,
+  current_amount: GrpcDecimalSchema,
+  created_at: GrpcTimeSchema,
+});
+export type TransactionsUpdateHistory = z.infer<
+  typeof TransactionsUpdateHistorySchema
+>;
+
+export const GetTransactionsUpdateHistoryRequestSchema = z.object({
+  transaction_id: z.number(),
+});
+export type GetTransactionsUpdateHistoryRequest = z.infer<
+  typeof GetTransactionsUpdateHistoryRequestSchema
+>;
+
+export const GetTransactionsUpdateHistoryResponseSchema = z.object({
+  history: z.array(TransactionsUpdateHistorySchema),
+});
+export type GetTransactionsUpdateHistoryResponse = z.infer<
+  typeof GetTransactionsUpdateHistoryResponseSchema
+>;
+
 export const GetTransactionsRequestSchema = z
   .object({
-    limit: z.number().gt(0, { message: "Invalid limit" }),
-    page: z.number().gt(0, { message: "Invalid page" }),
+    limit: z.number().gt(0, { error: "Invalid limit" }),
+    page: z.number().gt(0, { error: "Invalid page" }),
     type: CategoryTypeSchema.optional(),
-    category_id: z.number().gt(0, { message: "Invalid category" }).optional(),
+    category_id: z.number().gt(0, { error: "Invalid category" }).optional(),
     start_date: GrpcTimeSchema.optional(),
     end_date: GrpcTimeSchema.optional(),
   })
   .refine(
-    (data) => {
-      if (!data.start_date || !data.end_date) return true;
-      const start = data.start_date.seconds + data.start_date.nanos / 1e9;
-      const end = data.end_date.seconds + data.end_date.nanos / 1e9;
+    (x) => {
+      if (!x.start_date || !x.end_date) return true;
+      const start = x.start_date.seconds + x.start_date.nanos / 1e9;
+      const end = x.end_date.seconds + x.end_date.nanos / 1e9;
       return end >= start;
     },
     {
-      message: "end date must be after or equal to start date",
+      error: "end date must be after or equal to start date",
       path: ["end_date"],
     },
   );
@@ -170,9 +197,15 @@ export const CreateTransactionRequestSchema = z.object({
     .string()
     .trim()
     .min(1, { error: "Description is required" })
-    .max(255, "Description can be at most 255 characters long"),
-  amount: GrpcDecimalSchema.refine((val) => new BigNumber(val.value).gt(0), {
-    message: "Amount must be greater than zero",
+    .max(255, { error: "Description can be at most 255 characters long" }),
+  amount: GrpcDecimalSchema.superRefine((x, ctx) => {
+    if (new BigNumber(x.value).lte(0)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Amount must be greater than zero",
+        path: ["value"],
+      });
+    }
   }),
 });
 export type CreateTransactionRequest = z.infer<
@@ -188,9 +221,15 @@ export const UpdateTransactionRequestSchema = z.object({
     .string()
     .trim()
     .min(1, { error: "Description is required" })
-    .max(255, "Description can be at most 255 characters long"),
-  amount: GrpcDecimalSchema.refine((val) => new BigNumber(val.value).gt(0), {
-    message: "Amount must be greater than zero",
+    .max(255, { error: "Description can be at most 255 characters long" }),
+  amount: GrpcDecimalSchema.superRefine((x, ctx) => {
+    if (new BigNumber(x.value).lte(0)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Amount must be greater than zero",
+        path: ["value"],
+      });
+    }
   }),
 });
 export type UpdateTransactionRequest = z.infer<

@@ -1,12 +1,9 @@
-import { Link } from "react-router";
-
-import { ArrowLeft, Home } from "lucide-react";
-
 import { useDataQuery } from "@/api/handler";
-import { type FetchError } from "@/lib/objects";
-
 import { Error } from "@/components/Error";
 import { Loading } from "@/components/Loading";
+import { type FetchError } from "@/lib/objects";
+import { ArrowLeft, Home } from "lucide-react";
+import { Link } from "react-router";
 
 export default function NotFound() {
   const { data, isLoading, isError, error } = useDataQuery<null, string>(

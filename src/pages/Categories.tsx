@@ -1,7 +1,8 @@
-import { toast } from "sonner";
-
 import { useDataMutation, useDataQuery } from "@/api/handler";
-
+import { Error } from "@/components/Error";
+import { Loading } from "@/components/Loading";
+import { Form } from "@/components/pages/categories/Form";
+import { Table } from "@/components/pages/categories/Table";
 import {
   type CreateCategoryRequest,
   type DeleteRequest,
@@ -10,11 +11,7 @@ import {
   type SimpleResponse,
   type UpdateCategoryRequest,
 } from "@/lib/objects";
-
-import { Error } from "@/components/Error";
-import { Loading } from "@/components/Loading";
-import { Form } from "@/components/pages/categories/Form";
-import { CategoriesTable } from "@/components/pages/categories/Table";
+import { toast } from "sonner";
 
 export default function Categories() {
   const { data, isLoading, isError, error } = useDataQuery<
@@ -25,7 +22,7 @@ export default function Categories() {
   const {
     mutateAsync: createAsync,
     isPending: isCreating,
-    isError: createError,
+    isError: isCreateError,
   } = useDataMutation<CreateCategoryRequest, SimpleResponse>(
     "wallet",
     "/category/add",
@@ -41,7 +38,7 @@ export default function Categories() {
   const {
     mutateAsync: updateAsync,
     isPending: isUpdating,
-    isError: updateError,
+    isError: isUpdateError,
   } = useDataMutation<UpdateCategoryRequest, SimpleResponse>(
     "wallet",
     "/category/edit",
@@ -57,7 +54,7 @@ export default function Categories() {
   const {
     mutateAsync: deleteAsync,
     isPending: isDeleting,
-    isError: deleteError,
+    isError: isDeleteError,
   } = useDataMutation<DeleteRequest, SimpleResponse>(
     "wallet",
     "/category/delete",
@@ -76,9 +73,12 @@ export default function Categories() {
     "status" in error &&
     (error as FetchError).status === 404;
   const hasError =
-    (isError && !isNotFoundError) || createError || updateError || deleteError;
+    (isError && !isNotFoundError) ||
+    isCreateError ||
+    isUpdateError ||
+    isDeleteError;
 
-  if (isLoading || isCreating || isUpdating || isDeleting) {
+  if (isLoading) {
     return <Loading content="categories" />;
   }
   if (hasError || (!data && !isNotFoundError)) {
@@ -99,7 +99,7 @@ export default function Categories() {
         <Form isCreating={isCreating} mutateAsync={createAsync} />
       </div>
 
-      <CategoriesTable
+      <Table
         categories={categoryList}
         isUpdating={isUpdating}
         isDeleting={isDeleting}

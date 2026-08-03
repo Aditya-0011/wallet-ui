@@ -1,24 +1,23 @@
-import { Suspense, lazy } from "react";
-
+import { Loading } from "@/components/Loading";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { RootLayout } from "@/layouts/Root";
 import { FetchError } from "@/lib/objects";
+import NotFound from "@/pages/NotFound";
 import {
   QueryCache,
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { Suspense, lazy } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { toast } from "sonner";
 
 const CONSOLE_URL = import.meta.env.VITE_CONSOLE_URL;
 
-import { Loading } from "@/components/Loading";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { RootLayout } from "@/layouts/Root";
-import NotFound from "@/pages/NotFound";
-
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Categories = lazy(() => import("@/pages/Categories"));
+const Transactions = lazy(() => import("@/pages/Transactions"));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { gcTime: 0 } },
@@ -70,7 +69,7 @@ export default function App() {
               <Route element={<RootLayout />}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<Dashboard />} />
-                {/* <Route path="/transactions" element={<Transactions />} /> */}
+                <Route path="/transactions" element={<Transactions />} />
                 <Route path="/categories" element={<Categories />} />
               </Route>
               <Route path="*" element={<NotFound />} />

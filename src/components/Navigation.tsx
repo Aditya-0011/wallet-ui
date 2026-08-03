@@ -1,12 +1,4 @@
-import { Link, useLocation } from "react-router";
-
-import { ArrowLeftRight, LogOut, Tag, User } from "lucide-react";
-
 import { useDataMutation } from "@/api/handler";
-import { useAuth } from "@/contexts/AuthContext";
-
-import { type SimpleResponse } from "@/lib/objects";
-
 import {
   Sidebar,
   SidebarContent,
@@ -18,6 +10,10 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { useAuth } from "@/contexts/AuthContext";
+import { type SimpleResponse } from "@/lib/objects";
+import { ArrowLeftRight, LogOut, Tag, User } from "lucide-react";
+import { Link, useLocation } from "react-router";
 
 type navigationOptions = {
   title: string;
@@ -63,28 +59,20 @@ export function Navigation() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    tooltip={item.title}
-                    className="gap-4 text-base hover:bg-neutral-800"
-                    render={
-                      pathname === item.url ? (
-                        <button
-                          type="button"
-                          aria-label={item.title}
-                          disabled
-                        />
-                      ) : (
-                        <Link to={item.url} />
-                      )
-                    }
-                  >
-                    <item.icon className="size-10 text-amber-500" />
-                    <span>{item.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {items
+                .filter((item) => item.url !== pathname)
+                .map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      tooltip={item.title}
+                      className="gap-4 text-base hover:bg-neutral-800"
+                      render={<Link to={item.url} />}
+                    >
+                      <item.icon className="size-10 text-amber-500" />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

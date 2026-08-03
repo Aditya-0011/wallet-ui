@@ -1,7 +1,3 @@
-import { Trash2 } from "lucide-react";
-
-import { type SimpleResponse } from "@/lib/objects";
-
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,8 +9,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-
 import { Button } from "@/components/ui/button";
+import { type SimpleResponse } from "@/lib/objects";
+import { Trash2 } from "lucide-react";
 
 type DeleteProps<T extends string | number> = {
   id: T;

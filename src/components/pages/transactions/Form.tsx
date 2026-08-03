@@ -10,12 +10,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  EmojiPicker,
-  EmojiPickerContent,
-  EmojiPickerFooter,
-  EmojiPickerSearch,
-} from "@/components/ui/emoji-picker";
-import {
   Field,
   FieldError,
   FieldGroup,
@@ -31,51 +25,60 @@ import {
 } from "@/components/ui/select";
 import {
   CategoryType,
-  CreateCategoryRequestSchema,
-  UpdateCategoryRequestSchema,
-  getCategoryTypeLabel,
+  CreateTransactionRequestSchema,
+  UpdateTransactionRequestSchema,
   type Category,
-  type CreateCategoryRequest,
+  type CreateTransactionRequest,
   type SimpleResponse,
-  type UpdateCategoryRequest,
+  type Transaction,
+  type UpdateTransactionRequest,
 } from "@/lib/objects";
+import { cn } from "@/lib/utils";
 import { useForm } from "@tanstack/react-form";
-import { Edit2, Smile } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Edit2 } from "lucide-react";
+import { useState } from "react";
 
 type FormProps =
   | {
-      data: Category;
+      data: Transaction;
+      categories: Category[];
       isCreating?: undefined;
       isUpdating: boolean;
-      mutateAsync: (req: UpdateCategoryRequest) => Promise<SimpleResponse>;
+      mutateAsync: (req: UpdateTransactionRequest) => Promise<SimpleResponse>;
     }
   | {
       data?: undefined;
+      categories: Category[];
       isCreating: boolean;
       isUpdating?: undefined;
-      mutateAsync: (req: CreateCategoryRequest) => Promise<SimpleResponse>;
+      mutateAsync: (req: CreateTransactionRequest) => Promise<SimpleResponse>;
     };
 
-export function Form({ data, isCreating, isUpdating, mutateAsync }: FormProps) {
-  const formId = data ? `category-form-${data.id}` : "category-form-create";
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+export function Form({
+  data,
+  isCreating,
+  isUpdating,
+  mutateAsync,
+  categories,
+}: FormProps) {
   const [open, setOpen] = useState(false);
-  const emojiPickerRef = useRef<HTMLDivElement>(null);
-  const emojiButtonRef = useRef<HTMLButtonElement>(null);
+  const formId = data
+    ? `transaction-form-${data.id}`
+    : "transaction-form-create";
 
-  const defaultValues: UpdateCategoryRequest | CreateCategoryRequest = data
-    ? {
-        id: data.id,
-        name: data.name,
-        icon: data.icon,
-        type: data.type,
-      }
-    : {
-        name: "",
-        icon: "",
-        type: 2 as CategoryType,
-      };
+  const defaultValues: UpdateTransactionRequest | CreateTransactionRequest =
+    data
+      ? {
+          id: data.id,
+          amount: { value: data.amount.value },
+          description: data.description,
+          category_id: data.category.id,
+        }
+      : {
+          amount: { value: "" },
+          description: "",
+          category_id: 0,
+        };
 
   const {
     Field: FormField,
@@ -85,15 +88,18 @@ export function Form({ data, isCreating, isUpdating, mutateAsync }: FormProps) {
     defaultValues,
     validators: {
       onSubmit: data
-        ? UpdateCategoryRequestSchema.omit({ id: true })
-        : CreateCategoryRequestSchema,
+        ? UpdateTransactionRequestSchema.omit({ id: true })
+        : CreateTransactionRequestSchema,
     },
     onSubmit: async ({ value }) => {
       try {
         if (data) {
-          await mutateAsync({ ...value, id: data.id } as UpdateCategoryRequest);
+          await mutateAsync({
+            ...value,
+            id: data.id,
+          } as UpdateTransactionRequest);
         } else {
-          await mutateAsync(value as CreateCategoryRequest);
+          await mutateAsync(value as CreateTransactionRequest);
         }
         reset();
         setOpen(false);
@@ -103,23 +109,6 @@ export function Form({ data, isCreating, isUpdating, mutateAsync }: FormProps) {
     },
   });
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        emojiPickerRef.current &&
-        !emojiPickerRef.current.contains(event.target as Node) &&
-        emojiButtonRef.current &&
-        !emojiButtonRef.current.contains(event.target as Node)
-      ) {
-        setShowEmojiPicker(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
   return (
     <Dialog
       open={open}
@@ -127,7 +116,6 @@ export function Form({ data, isCreating, isUpdating, mutateAsync }: FormProps) {
         setOpen(isOpen);
         if (!isOpen) {
           reset();
-          setShowEmojiPicker(false);
         }
       }}
     >
@@ -162,11 +150,12 @@ export function Form({ data, isCreating, isUpdating, mutateAsync }: FormProps) {
             <DialogTitle>
               {data ? (
                 <>
-                  Update <span className="text-amber-500">{data.name}</span>
+                  Update{" "}
+                  <span className="text-amber-500">{data.description}</span>
                 </>
               ) : (
                 <>
-                  Add <span className="text-amber-500">category</span>
+                  Add <span className="text-amber-500">transaction</span>
                 </>
               )}
             </DialogTitle>
@@ -176,16 +165,134 @@ export function Form({ data, isCreating, isUpdating, mutateAsync }: FormProps) {
                 : "Try not to put any typos!"}
             </DialogDescription>
           </DialogHeader>
+
           <FieldGroup className="mt-1">
             <FormField
-              name="name"
+              name="amount.value"
               children={(field) => {
                 const isInvalid =
                   field.state.meta.isTouched && !field.state.meta.isValid;
 
                 return (
                   <Field data-invalid={isInvalid}>
-                    <FieldLabel htmlFor={field.name}>Name</FieldLabel>
+                    <FieldLabel htmlFor={field.name}>Amount</FieldLabel>
+                    <Input
+                      id={field.name}
+                      name={field.name}
+                      value={field.state.value}
+                      autoComplete="off"
+                      onBlur={field.handleBlur}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      aria-invalid={isInvalid}
+                      disabled={isCreating || isUpdating}
+                      type="number"
+                      step="0.01"
+                      required
+                      className="border-input rounded-md border bg-neutral-950 focus-visible:border-amber-500 focus-visible:ring-0 focus-visible:ring-amber-500"
+                    />
+                    {isInvalid && (
+                      <FieldError errors={field.state.meta.errors} />
+                    )}
+                  </Field>
+                );
+              }}
+            />
+
+            <FormField
+              name="category_id"
+              children={(field) => {
+                const selectedCategory = categories.find(
+                  (c) => c.id === field.state.value,
+                );
+
+                const selectedColor =
+                  selectedCategory?.type === CategoryType.Income
+                    ? "text-emerald-500"
+                    : selectedCategory?.type === CategoryType.Expense
+                      ? "text-rose-500"
+                      : "text-muted-foreground";
+
+                const isInvalid =
+                  field.state.meta.isTouched && !field.state.meta.isValid;
+
+                return (
+                  <Field data-invalid={isInvalid}>
+                    <FieldLabel htmlFor={field.name}>Category</FieldLabel>
+                    <Select
+                      name={field.name}
+                      value={
+                        field.state.value ? field.state.value.toString() : ""
+                      }
+                      onValueChange={(val) => field.handleChange(Number(val))}
+                      disabled={isCreating || isUpdating}
+                      aria-invalid={isInvalid}
+                      required
+                    >
+                      <SelectTrigger
+                        id={field.name}
+                        className={cn(
+                          "border-input w-full rounded-md border bg-neutral-950 focus-visible:border-amber-500 focus-visible:ring-0 focus-visible:ring-amber-500",
+                          selectedColor,
+                        )}
+                      >
+                        <SelectValue>
+                          {(val: string | null) => {
+                            if (!val) return "Select a category";
+                            const selectedCategory = categories.find(
+                              (c) => c.id === Number(val),
+                            );
+                            return selectedCategory ? (
+                              <div className="flex items-center gap-2">
+                                <span>{selectedCategory.icon}</span>
+                                <span>{selectedCategory.name}</span>
+                              </div>
+                            ) : (
+                              "Select a category"
+                            );
+                          }}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="border-input rounded-md border px-1 py-2">
+                        {categories.map((c) => {
+                          const optionColor =
+                            c.type === CategoryType.Income
+                              ? "text-emerald-500"
+                              : c.type === CategoryType.Expense
+                                ? "text-rose-500"
+                                : "text-muted-foreground";
+
+                          return (
+                            <SelectItem
+                              key={c.id}
+                              value={c.id.toString()}
+                              className={cn("rounded-md", optionColor)}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span>{c.icon}</span>
+                                <span>{c.name}</span>
+                              </div>
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                    {isInvalid && (
+                      <FieldError errors={field.state.meta.errors} />
+                    )}
+                  </Field>
+                );
+              }}
+            />
+
+            <FormField
+              name="description"
+              children={(field) => {
+                const isInvalid =
+                  field.state.meta.isTouched && !field.state.meta.isValid;
+
+                return (
+                  <Field data-invalid={isInvalid}>
+                    <FieldLabel htmlFor={field.name}>Description</FieldLabel>
                     <Input
                       id={field.name}
                       name={field.name}
@@ -199,125 +306,6 @@ export function Form({ data, isCreating, isUpdating, mutateAsync }: FormProps) {
                       required
                       className="border-input rounded-md border bg-neutral-950 focus-visible:border-amber-500 focus-visible:ring-0 focus-visible:ring-amber-500"
                     />
-                    {isInvalid && (
-                      <FieldError errors={field.state.meta.errors} />
-                    )}
-                  </Field>
-                );
-              }}
-            />
-
-            <FormField
-              name="type"
-              children={(field) => {
-                const isInvalid =
-                  field.state.meta.isTouched && !field.state.meta.isValid;
-
-                return (
-                  <Field data-invalid={isInvalid}>
-                    <FieldLabel htmlFor={field.name}>Category</FieldLabel>
-                    <Select
-                      name={field.name}
-                      value={field.state.value.toString()}
-                      onValueChange={(value) => {
-                        field.handleChange(Number(value) as CategoryType);
-                      }}
-                      disabled={isCreating || isUpdating}
-                      aria-invalid={isInvalid}
-                      required
-                    >
-                      <SelectTrigger
-                        id={field.name}
-                        className="border-input w-full rounded-md border bg-neutral-950 focus-visible:border-amber-500 focus-visible:ring-0 focus-visible:ring-amber-500"
-                      >
-                        <SelectValue>
-                          {(val: string | null) =>
-                            val
-                              ? getCategoryTypeLabel(
-                                  Number(val) as CategoryType,
-                                )
-                              : "Select Category"
-                          }
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent className="border-input rounded-md border px-1 py-2">
-                        {Object.entries(CategoryType)
-                          .filter(
-                            ([name]) =>
-                              isNaN(Number(name)) && name !== "Unspecified",
-                          )
-                          .map(([name, value]) => (
-                            <SelectItem
-                              key={name}
-                              value={value.toString()}
-                              className="rounded-md"
-                            >
-                              {getCategoryTypeLabel(value as CategoryType)}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                    {isInvalid && (
-                      <FieldError errors={field.state.meta.errors} />
-                    )}
-                  </Field>
-                );
-              }}
-            />
-
-            <FormField
-              name="icon"
-              children={(field) => {
-                const isInvalid =
-                  field.state.meta.isTouched && !field.state.meta.isValid;
-
-                return (
-                  <Field data-invalid={isInvalid} className="relative">
-                    <FieldLabel htmlFor={field.name}>Icon</FieldLabel>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        id={field.name}
-                        name={field.name}
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        className="border-input w-full rounded-md border bg-neutral-950 focus-visible:border-amber-500 focus-visible:ring-0 focus-visible:ring-amber-500"
-                        disabled={isCreating || isUpdating}
-                        autoComplete="off"
-                        placeholder="Icon(s)"
-                      />
-                      <Button
-                        type="button"
-                        ref={emojiButtonRef}
-                        variant="outline"
-                        size="icon"
-                        className="border-input shrink-0 rounded-md bg-neutral-950 hover:bg-neutral-900 focus-visible:border-amber-500 focus-visible:ring-0 focus-visible:ring-amber-500"
-                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                        disabled={isCreating || isUpdating}
-                      >
-                        <Smile size={16} className="text-muted-foreground" />
-                      </Button>
-                    </div>
-
-                    {showEmojiPicker && (
-                      <div
-                        ref={emojiPickerRef}
-                        className="animate-in fade-in-0 zoom-in-95 absolute top-full right-0 z-50 mt-2 h-75 w-full rounded-md border bg-neutral-950 shadow-md"
-                      >
-                        <EmojiPicker
-                          className="h-full w-full"
-                          columns={13}
-                          onEmojiSelect={(emojiData) => {
-                            field.handleChange(
-                              (field.state.value || "") + emojiData.emoji,
-                            );
-                          }}
-                        >
-                          <EmojiPickerSearch />
-                          <EmojiPickerContent />
-                          <EmojiPickerFooter />
-                        </EmojiPicker>
-                      </div>
-                    )}
                     {isInvalid && (
                       <FieldError errors={field.state.meta.errors} />
                     )}
