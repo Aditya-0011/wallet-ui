@@ -7,11 +7,9 @@ import {
   type CreateTransactionRequest,
   type DeleteRequest,
   type FetchError,
+  type GetCategoriesResponse,
   type GetTransactionsRequest,
   type GetTransactionsResponse,
-  type GetCategoriesResponse,
-  // type GetTransactionsUpdateHistoryRequest,
-  // type GetTransactionsUpdateHistoryResponse,
   type SimpleResponse,
   type UpdateTransactionRequest,
 } from "@/lib/objects";
@@ -54,18 +52,6 @@ export default function Transactions() {
       variables: filters,
     },
   );
-
-  // const {
-  //   data: history,
-  //   isLoading: isHistoryLoading,
-  //   isError: isHistoryError,
-  //   error: historyError,
-  // } = useDataQuery<
-  //   GetTransactionsUpdateHistoryRequest,
-  //   GetTransactionsUpdateHistoryResponse
-  // >("wallet", ["transactions"], "/transaction/history", false, {
-  //   isQuery: true,
-  // });
 
   const {
     mutateAsync: createAsync,
@@ -148,26 +134,9 @@ export default function Transactions() {
     return <Error content="transactions" />;
   }
 
-  // const isHistoryNotFoundError =
-  //   isHistoryError &&
-  //   historyError &&
-  //   "status" in historyError &&
-  //   (historyError as FetchError).status === 404;
-  // const hasHistoryError = isHistoryError && !isHistoryNotFoundError;
-
-  // if (isHistoryLoading) {
-  //   return <Loading content="transaction history" />;
-  // }
-  // if (hasHistoryError || (!history && !isHistoryNotFoundError)) {
-  //   return <Error content="transaction history" />;
-  // }
-
   const transactionList = isTransactionsNotFoundError
     ? []
     : transactions?.transactions || [];
-  // const transactionUpdateHistoryList = isHistoryNotFoundError
-  //   ? []
-  //   : history?.history || [];
 
   return (
     <div className="flex w-full flex-col gap-6">

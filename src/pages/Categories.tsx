@@ -28,7 +28,7 @@ export default function Categories() {
     "/category/add",
     false,
     {
-      invalidateKey: [["categories"]],
+      invalidateKey: [["categories"], ["transactions"]],
       onSuccess: (data) => {
         toast.success(data.message);
       },
@@ -44,7 +44,7 @@ export default function Categories() {
     "/category/edit",
     false,
     {
-      invalidateKey: [["categories"]],
+      invalidateKey: [["categories"], ["transactions"]],
       onSuccess: (data) => {
         toast.success(data.message);
       },
@@ -60,7 +60,7 @@ export default function Categories() {
     "/category/delete",
     false,
     {
-      invalidateKey: [["categories"]],
+      invalidateKey: [["categories"], ["transactions"]],
       onSuccess: (data) => {
         toast.success(data.message);
       },

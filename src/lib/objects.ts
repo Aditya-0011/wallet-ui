@@ -1,5 +1,5 @@
 import { type RankingInfo } from "@tanstack/match-sorter-utils";
-import { type FilterFn } from "@tanstack/react-table";
+import { type FilterFn, type TableFeatures } from "@tanstack/react-table";
 import BigNumber from "bignumber.js";
 import { z } from "zod";
 
@@ -252,7 +252,7 @@ declare module "luxon" {
 
 declare module "@tanstack/react-table" {
   interface FilterFns {
-    fuzzy: FilterFn<unknown>;
+    fuzzy: FilterFn<TableFeatures, Record<string, unknown>>;
   }
   interface FilterMeta {
     itemRank: RankingInfo;

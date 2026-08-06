@@ -33,29 +33,41 @@ import {
 } from "@tanstack/match-sorter-utils";
 import {
   type Column,
-  type ColumnDef,
   type ColumnFiltersState,
+  type ColumnVisibilityState,
   type FilterFn,
-  type SortingFn,
+  type SortFn,
   type SortingState,
+  columnFilteringFeature,
+  columnVisibilityFeature,
+  createColumnHelper,
+  createFilteredRowModel,
+  createPaginatedRowModel,
+  createSortedRowModel,
   flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  sortingFns,
-  useReactTable,
+  metaHelper,
+  rowPaginationFeature,
+  rowSelectionFeature,
+  rowSortingFeature,
+  sortFn_alphanumeric,
+  tableFeatures,
+  useTable,
 } from "@tanstack/react-table";
 import { ArrowRightLeft, ArrowUpDown, Filter, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 
-const fuzzyFilter: FilterFn<Category> = (row, columnId, value, addMeta) => {
+const fuzzyFilter: FilterFn<typeof features, Category> = (
+  row,
+  columnId,
+  value,
+  addMeta,
+) => {
   const itemRank = rankItem(row.getValue(columnId), value);
-  addMeta({ itemRank });
+  addMeta?.({ itemRank });
   return itemRank.passed;
 };
 
-const fuzzySort: SortingFn<Category> = (rowA, rowB, columnId) => {
+const fuzzySort: SortFn<typeof features, Category> = (rowA, rowB, columnId) => {
   let dir = 0;
   const rankA = (rowA.columnFiltersMeta[columnId] as { itemRank: RankingInfo })
     ?.itemRank;
@@ -64,10 +76,14 @@ const fuzzySort: SortingFn<Category> = (rowA, rowB, columnId) => {
   if (rankA !== undefined && rankB !== undefined) {
     dir = compareItems(rankA, rankB);
   }
-  return dir === 0 ? sortingFns.alphanumeric(rowA, rowB, columnId) : dir;
+  return dir === 0 ? sortFn_alphanumeric(rowA, rowB, columnId) : dir;
 };
 
-function NameHeader({ column }: { column: Column<Category> }) {
+function NameHeader<TValue>({
+  column,
+}: {
+  column: Column<typeof features, Category, TValue>;
+}) {
   const [open, setOpen] = useState(false);
   const filterValue = column.getFilterValue() as string | undefined;
   const [prevFilterValue, setPrevFilterValue] = useState(filterValue);
@@ -121,7 +137,11 @@ function NameHeader({ column }: { column: Column<Category> }) {
   );
 }
 
-function TypeHeader({ column }: { column: Column<Category> }) {
+function TypeHeader<TValue>({
+  column,
+}: {
+  column: Column<typeof features, Category, TValue>;
+}) {
   const [open, setOpen] = useState(false);
   const filterValue = column.getFilterValue() as string | number | undefined;
   const [prevFilterValue, setPrevFilterValue] = useState(filterValue);
@@ -197,6 +217,179 @@ type CategoriesTableProps = {
   deleteAsync: (req: DeleteRequest) => Promise<SimpleResponse>;
 };
 
+type CategoriesTableMeta = {
+  isUpdating: boolean;
+  isDeleting: boolean;
+  updateAsync: (req: UpdateCategoryRequest) => Promise<SimpleResponse>;
+  deleteAsync: (req: DeleteRequest) => Promise<SimpleResponse>;
+};
+
+const features = tableFeatures({
+  tableMeta: metaHelper<CategoriesTableMeta>(),
+  columnVisibilityFeature,
+  rowSelectionFeature,
+  columnFilteringFeature,
+  filteredRowModel: createFilteredRowModel(),
+  rowSortingFeature,
+  sortedRowModel: createSortedRowModel(),
+  rowPaginationFeature,
+  paginatedRowModel: createPaginatedRowModel(),
+});
+
+const helper = createColumnHelper<typeof features, Category>();
+
+const columns = helper.columns([
+  helper.accessor("icon", {
+    header: () => <span className="pl-2">Icon</span>,
+    cell: ({ row }) => (
+      <div className="pl-2 text-xl">{row.getValue("icon")}</div>
+    ),
+  }),
+  helper.accessor("name", {
+    header: ({ column }) => <NameHeader column={column} />,
+    cell: ({ row }) => {
+      return <span className="font-medium">{row.getValue("name")}</span>;
+    },
+    filterFn: fuzzyFilter,
+    sortFn: fuzzySort,
+  }),
+  helper.accessor("type", {
+    header: ({ column }) => <TypeHeader column={column} />,
+    cell: ({ row }) => {
+      const type = row.getValue("type") as CategoryType;
+      const label = getCategoryTypeLabel(type);
+      return (
+        <span
+          className={cn(
+            "rounded-full border px-2.5 py-0.5 text-xs font-medium",
+            type === CategoryType.Income
+              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-500"
+              : type === CategoryType.Expense
+                ? "border-rose-500/20 bg-rose-500/10 text-rose-500"
+                : "bg-muted text-muted-foreground border-transparent",
+          )}
+        >
+          {label}
+        </span>
+      );
+    },
+    filterFn: (row, id, value) => {
+      return value === undefined || row.getValue(id) === value;
+    },
+  }),
+  helper.accessor((row) => row.created_at?.seconds, {
+    id: "createdAt",
+    header: ({ column, table }) => {
+      return (
+        <div className="flex items-center justify-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-3 h-8 transition-colors hover:bg-white/5"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            <span>Created</span>
+            <ArrowUpDown className="text-muted-foreground ml-1.5 h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-foreground h-7 w-7 transition-colors hover:bg-white/10"
+            onClick={() =>
+              table.setColumnVisibility({ createdAt: false, updatedAt: true })
+            }
+            title="Switch to Updated"
+          >
+            <ArrowRightLeft size={14} />
+          </Button>
+        </div>
+      );
+    },
+    cell: ({ row }) => {
+      return (
+        <div className="text-muted-foreground pr-4 text-center text-sm">
+          <span className="transition-all duration-300">
+            {formatDate(row.original.created_at, { weekDay: true })}
+          </span>
+        </div>
+      );
+    },
+  }),
+  helper.accessor((row) => row.updated_at?.seconds, {
+    id: "updatedAt",
+    header: ({ column, table }) => {
+      return (
+        <div className="flex items-center justify-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-3 h-8 text-amber-500 transition-colors hover:bg-white/5 hover:text-amber-400"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            <span>Updated</span>
+            <ArrowUpDown className="ml-1.5 h-3.5 w-3.5 text-amber-500/70" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-amber-500 transition-colors hover:bg-white/10 hover:text-amber-400"
+            onClick={() =>
+              table.setColumnVisibility({ createdAt: true, updatedAt: false })
+            }
+            title="Switch to Created"
+          >
+            <ArrowRightLeft size={14} />
+          </Button>
+        </div>
+      );
+    },
+    cell: ({ row }) => {
+      const isUpdated =
+        row.original.updated_at &&
+        row.original.created_at &&
+        row.original.updated_at.seconds > row.original.created_at.seconds;
+
+      return (
+        <div className="text-muted-foreground pr-4 text-center text-sm">
+          <span
+            className={cn(
+              "transition-all duration-300",
+              isUpdated
+                ? "rounded-md px-2 py-0.5 font-medium text-amber-500"
+                : "",
+            )}
+          >
+            {formatDate(row.original.updated_at, { weekDay: true })}
+          </span>
+        </div>
+      );
+    },
+  }),
+  helper.display({
+    id: "actions",
+    header: () => <div className="pr-2 text-right">Actions</div>,
+    cell: ({ row, table }) => {
+      const meta = table.options.meta!;
+      return (
+        <div className="flex justify-end gap-1 pr-2">
+          <Form
+            data={row.original}
+            isUpdating={meta.isUpdating}
+            mutateAsync={meta.updateAsync}
+          />
+          <Delete
+            id={row.original.id}
+            description="This action cannot be undone. This will delete the category"
+            name={row.original.name}
+            isDeleting={meta.isDeleting}
+            mutateAsync={meta.deleteAsync}
+          />
+        </div>
+      );
+    },
+  }),
+]);
+
 export function Table({
   categories,
   isUpdating,
@@ -206,177 +399,44 @@ export function Table({
 }: CategoriesTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [showUpdated, setShowUpdated] = useState(false);
+  const [columnVisibility, setColumnVisibility] =
+    useState<ColumnVisibilityState>({
+      createdAt: true,
+      updatedAt: false,
+    });
 
-  type CategoriesTableMeta = {
-    isUpdating: boolean;
-    isDeleting: boolean;
-    updateAsync: (req: UpdateCategoryRequest) => Promise<SimpleResponse>;
-    deleteAsync: (req: DeleteRequest) => Promise<SimpleResponse>;
+  const meta = {
+    isUpdating,
+    isDeleting,
+    updateAsync,
+    deleteAsync,
   };
 
-  const columns = useMemo<ColumnDef<Category>[]>(
-    () => [
-      {
-        accessorKey: "icon",
-        header: () => <span className="pl-2">Icon</span>,
-        cell: ({ row }) => (
-          <div className="pl-2 text-xl">{row.getValue("icon")}</div>
-        ),
-      },
-      {
-        accessorKey: "name",
-        header: ({ column }) => <NameHeader column={column} />,
-        cell: ({ row }) => {
-          return <span className="font-medium">{row.getValue("name")}</span>;
-        },
-        filterFn: "fuzzy",
-        sortingFn: fuzzySort,
-      },
-      {
-        accessorKey: "type",
-        header: ({ column }) => <TypeHeader column={column} />,
-        cell: ({ row }) => {
-          const type = row.getValue("type") as CategoryType;
-          const label = getCategoryTypeLabel(type);
-          return (
-            <span
-              className={cn(
-                "rounded-full border px-2.5 py-0.5 text-xs font-medium",
-                type === CategoryType.Income
-                  ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-500"
-                  : type === CategoryType.Expense
-                    ? "border-rose-500/20 bg-rose-500/10 text-rose-500"
-                    : "bg-muted text-muted-foreground border-transparent",
-              )}
-            >
-              {label}
-            </span>
-          );
-        },
-        filterFn: (row, id, value) => {
-          return value === undefined || row.getValue(id) === value;
-        },
-      },
-      {
-        id: "date",
-        accessorFn: (row) =>
-          showUpdated ? row.updated_at?.seconds : row.created_at?.seconds,
-        header: ({ column }) => {
-          return (
-            <div className="flex items-center justify-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "-ml-3 h-8 transition-colors hover:bg-white/5",
-                  showUpdated && "text-amber-500 hover:text-amber-400",
-                )}
-                onClick={() =>
-                  column.toggleSorting(column.getIsSorted() === "asc")
-                }
-              >
-                <span>{showUpdated ? "Updated" : "Created"}</span>
-                <ArrowUpDown
-                  className={cn(
-                    "ml-1.5 h-3.5 w-3.5",
-                    showUpdated ? "text-amber-500/70" : "text-muted-foreground",
-                  )}
-                />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "h-7 w-7 transition-colors hover:bg-white/10",
-                  showUpdated
-                    ? "text-amber-500 hover:text-amber-400"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-                onClick={() => setShowUpdated(!showUpdated)}
-                title={`Switch to ${showUpdated ? "Created" : "Updated"}`}
-              >
-                <ArrowRightLeft size={14} />
-              </Button>
-            </div>
-          );
-        },
-        cell: ({ row }) => {
-          const time = showUpdated
-            ? row.original.updated_at
-            : row.original.created_at;
-
-          const isUpdated =
-            showUpdated &&
-            row.original.updated_at &&
-            row.original.created_at &&
-            row.original.updated_at.seconds > row.original.created_at.seconds;
-
-          return (
-            <div className="text-muted-foreground pr-4 text-center text-sm">
-              <span
-                className={cn(
-                  "transition-all duration-300",
-                  isUpdated
-                    ? "rounded-md px-2 py-0.5 font-medium text-amber-500"
-                    : "",
-                )}
-              >
-                {formatDate(time, true)}
-              </span>
-            </div>
-          );
-        },
-      },
-      {
-        id: "actions",
-        header: () => <div className="pr-2 text-right">Actions</div>,
-        cell: ({ row, table }) => {
-          const meta = table.options.meta as CategoriesTableMeta;
-          return (
-            <div className="flex justify-end gap-1 pr-2">
-              <Form
-                data={row.original}
-                isUpdating={meta.isUpdating}
-                mutateAsync={meta.updateAsync}
-              />
-              <Delete
-                id={row.original.id}
-                description="This action cannot be undone. This will delete the category"
-                name={row.original.name}
-                isDeleting={meta.isDeleting}
-                mutateAsync={meta.deleteAsync}
-              />
-            </div>
-          );
-        },
-      },
-    ],
-    [showUpdated],
-  );
-
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const table = useReactTable({
+  const table = useTable({
+    features,
     data: categories,
     columns,
-    meta: {
-      isUpdating,
-      isDeleting,
-      updateAsync,
-      deleteAsync,
-    },
-    filterFns: {
-      fuzzy: fuzzyFilter,
-    },
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
+    meta,
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
+    onColumnFiltersChange: (updater) => {
+      setColumnFilters(updater);
+      setSorting((prevSorting) => {
+        const nextFilters =
+          typeof updater === "function" ? updater(columnFilters) : updater;
+        const nameFilter = nextFilters.find((f) => f.id === "name");
+
+        if (nameFilter && !prevSorting.find((s) => s.id === "name")) {
+          return [{ id: "name", desc: false }];
+        }
+        return prevSorting;
+      });
+    },
+    onColumnVisibilityChange: setColumnVisibility,
+    autoResetPageIndex: false,
     state: {
       sorting,
       columnFilters,
+      columnVisibility,
     },
     initialState: {
       pagination: {
@@ -385,17 +445,6 @@ export function Table({
       },
     },
   });
-
-  const columnFiltersState = table.getState().columnFilters;
-
-  useEffect(() => {
-    const nameFilter = columnFiltersState.find((f) => f.id === "name");
-    if (nameFilter) {
-      if (!table.getState().sorting.find((s) => s.id === "name")) {
-        table.setSorting([{ id: "name", desc: false }]);
-      }
-    }
-  }, [columnFiltersState, table]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -448,7 +497,7 @@ export function Table({
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length}
+                  colSpan={table.getAllColumns().length}
                   className="text-muted-foreground h-32 text-center"
                 >
                   No categories found.
