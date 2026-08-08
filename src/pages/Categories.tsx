@@ -17,7 +17,9 @@ export default function Categories() {
   const { data, isLoading, isError, error } = useDataQuery<
     null,
     GetCategoriesResponse
-  >("wallet", ["categories"], "/category/list", false);
+  >("wallet", ["categories"], "/category/list", false, {
+    staleTime: 30 * 60 * 1000,
+  });
 
   const {
     mutateAsync: createAsync,
@@ -89,14 +91,16 @@ export default function Categories() {
 
   return (
     <div className="flex w-full flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold">Categories</h1>
+          <h1 className="text-2xl font-semibold sm:text-3xl">Categories</h1>
           <p className="text-muted-foreground mt-1 text-xs">
             Nothing beats 'Stuff I bought'
           </p>
         </div>
-        <Form isCreating={isCreating} mutateAsync={createAsync} />
+        <div className="flex shrink-0 items-center gap-3">
+          <Form isCreating={isCreating} mutateAsync={createAsync} />
+        </div>
       </div>
 
       <Table

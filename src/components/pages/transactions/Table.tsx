@@ -36,22 +36,40 @@ import {
   useTable,
   type ColumnVisibilityState,
 } from "@tanstack/react-table";
-import { ArrowRightLeft } from "lucide-react";
-import { useState } from "react";
+import {
+  ArrowDown,
+  ArrowRightLeft,
+  ArrowUp,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Form } from "./Form";
 import { Table as HistoryTable } from "./history/Table";
 
-type TransactionsTableProps = {
+type TransactionsTableBaseProps = {
   transactions: Transaction[];
+  isLoading: boolean;
+};
+
+type TransactionsTableFullProps = TransactionsTableBaseProps & {
+  readonly?: false;
   categories: Category[];
   backendPage: number;
   setBackendPage: (page: number) => void;
-  isLoading: boolean;
   isUpdating: boolean;
   isDeleting: boolean;
   updateAsync: (req: UpdateTransactionRequest) => Promise<SimpleResponse>;
   deleteAsync: (req: DeleteRequest) => Promise<SimpleResponse>;
 };
+
+type TransactionsTableReadonlyProps = TransactionsTableBaseProps & {
+  readonly: true;
+};
+
+type TransactionsTableProps =
+  TransactionsTableFullProps | TransactionsTableReadonlyProps;
 
 type TransactionsTableMeta = {
   isUpdating: boolean;
@@ -120,6 +138,13 @@ const columns = helper.columns([
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           >
             <span>Created</span>
+            {column.getIsSorted() === "asc" ? (
+              <ArrowUp className="ml-2 h-4 w-4" />
+            ) : column.getIsSorted() === "desc" ? (
+              <ArrowDown className="ml-2 h-4 w-4" />
+            ) : (
+              <ArrowUpDown className="ml-2 h-4 w-4" />
+            )}
           </Button>
           <Button
             variant="ghost"
@@ -127,7 +152,11 @@ const columns = helper.columns([
             className="text-muted-foreground hover:text-foreground h-7 w-7 transition-colors hover:bg-white/10"
             title="Switch to Updated"
             onClick={() =>
-              table.setColumnVisibility({ createdAt: false, updatedAt: true })
+              table.setColumnVisibility((prev) => ({
+                ...prev,
+                createdAt: false,
+                updatedAt: true,
+              }))
             }
           >
             <ArrowRightLeft size={14} />
@@ -157,6 +186,13 @@ const columns = helper.columns([
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           >
             <span>Updated</span>
+            {column.getIsSorted() === "asc" ? (
+              <ArrowUp className="ml-2 h-4 w-4" />
+            ) : column.getIsSorted() === "desc" ? (
+              <ArrowDown className="ml-2 h-4 w-4" />
+            ) : (
+              <ArrowUpDown className="ml-2 h-4 w-4" />
+            )}
           </Button>
           <Button
             variant="ghost"
@@ -164,7 +200,11 @@ const columns = helper.columns([
             className="h-7 w-7 text-amber-500/70 transition-colors hover:bg-white/10 hover:text-amber-500"
             title="Switch to Created"
             onClick={() =>
-              table.setColumnVisibility({ createdAt: true, updatedAt: false })
+              table.setColumnVisibility((prev) => ({
+                ...prev,
+                createdAt: true,
+                updatedAt: false,
+              }))
             }
           >
             <ArrowRightLeft size={14} />
@@ -233,21 +273,14 @@ const columns = helper.columns([
   }),
 ]);
 
-export function Table({
-  transactions,
-  categories,
-  backendPage,
-  setBackendPage,
-  isLoading,
-  isUpdating,
-  isDeleting,
-  updateAsync,
-  deleteAsync,
-}: TransactionsTableProps) {
+export function Table(props: TransactionsTableProps) {
+  const isReadonly = props.readonly === true;
+
   const [columnVisibility, setColumnVisibility] =
     useState<ColumnVisibilityState>({
       createdAt: true,
       updatedAt: false,
+      ...(isReadonly && { actions: false }),
     });
 
   const [pagination, setPagination] = useState({
@@ -255,17 +288,36 @@ export function Table({
     pageSize: 25,
   });
 
-  const meta = {
-    isUpdating,
-    isDeleting,
-    updateAsync,
-    deleteAsync,
-    categories,
-  };
+  const backendPage = "backendPage" in props ? props.backendPage : undefined;
+  const previousBackendPage = useRef(backendPage);
+
+  useEffect(() => {
+    if (
+      backendPage !== undefined &&
+      previousBackendPage.current !== undefined
+    ) {
+      if (backendPage < previousBackendPage.current) {
+        setPagination((prev) => ({ ...prev, pageIndex: 1 }));
+      } else if (backendPage > previousBackendPage.current) {
+        setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+      }
+    }
+    previousBackendPage.current = backendPage;
+  }, [backendPage]);
+
+  const meta = isReadonly
+    ? undefined
+    : {
+        isUpdating: props.isUpdating,
+        isDeleting: props.isDeleting,
+        updateAsync: props.updateAsync,
+        deleteAsync: props.deleteAsync,
+        categories: props.categories,
+      };
 
   const table = useTable({
     features,
-    data: transactions,
+    data: props.transactions,
     columns,
     meta,
     state: {
@@ -280,39 +332,36 @@ export function Table({
   const handleNextPage = () => {
     if (table.getCanNextPage()) {
       table.nextPage();
-    } else {
-      if (transactions.length === 50) {
-        setBackendPage(backendPage + 1);
-      }
+    } else if (!isReadonly && props.transactions.length === 50) {
+      props.setBackendPage(props.backendPage + 1);
     }
   };
 
   const handlePrevPage = () => {
     if (table.getCanPreviousPage()) {
       table.previousPage();
-    } else {
-      if (backendPage > 1) {
-        setBackendPage(backendPage - 1);
-      }
+    } else if (!isReadonly && props.backendPage > 1) {
+      props.setBackendPage(props.backendPage - 1);
     }
   };
 
   const isLocalNextDisabled = !table.getCanNextPage();
-  const isBackendNextDisabled = transactions.length < 50;
+  const isBackendNextDisabled = isReadonly || props.transactions.length < 50;
 
   const canNext = !isLocalNextDisabled || !isBackendNextDisabled;
-  const canPrev = table.getCanPreviousPage() || backendPage > 1;
+  const canPrev =
+    table.getCanPreviousPage() || (!isReadonly && props.backendPage > 1);
 
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-xl border border-white/10 bg-neutral-950/20 shadow-sm backdrop-blur">
         <TableTag>
           <colgroup>
-            <col className="w-[30%]" />
-            <col className="w-[15%]" />
-            <col className="w-[20%]" />
-            <col className="w-[20%]" />
-            <col className="w-[15%]" />
+            <col className={isReadonly ? "w-[30%]" : "w-[30%]"} />
+            <col className={isReadonly ? "w-[20%]" : "w-[15%]"} />
+            <col className={isReadonly ? "w-[25%]" : "w-[20%]"} />
+            <col className={isReadonly ? "w-[25%]" : "w-[20%]"} />
+            {!isReadonly && <col className="w-[15%]" />}
           </colgroup>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -370,7 +419,7 @@ export function Table({
                   colSpan={table.getAllColumns().length}
                   className="h-24 text-center"
                 >
-                  {isLoading ? "Loading..." : "No transactions found."}
+                  {props.isLoading ? "Loading..." : "No transactions found."}
                 </TableCell>
               </TableRow>
             )}
@@ -383,8 +432,9 @@ export function Table({
           size="sm"
           onClick={handlePrevPage}
           disabled={!canPrev}
-          className="border-white/10 bg-transparent transition-colors hover:bg-white/10"
+          className="flex items-center gap-1 border-white/10 bg-transparent transition-colors hover:bg-white/10"
         >
+          <ChevronLeft className="size-4" />
           Previous
         </Button>
         <Button
@@ -392,9 +442,10 @@ export function Table({
           size="sm"
           onClick={handleNextPage}
           disabled={!canNext}
-          className="border-white/10 bg-transparent transition-colors hover:bg-white/10"
+          className="flex items-center gap-1 border-white/10 bg-transparent transition-colors hover:bg-white/10"
         >
           Next
+          <ChevronRight className="size-4" />
         </Button>
       </div>
     </div>

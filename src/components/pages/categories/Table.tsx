@@ -53,7 +53,14 @@ import {
   tableFeatures,
   useTable,
 } from "@tanstack/react-table";
-import { ArrowRightLeft, ArrowUpDown, Filter, Search } from "lucide-react";
+import {
+  ArrowRightLeft,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Search,
+} from "lucide-react";
 import { useState } from "react";
 
 const fuzzyFilter: FilterFn<typeof features, Category> = (
@@ -514,8 +521,9 @@ export function Table({
           size="sm"
           onClick={() => table.previousPage()}
           disabled={!table.getCanPreviousPage()}
-          className="border-white/10 bg-transparent transition-colors hover:bg-white/10"
+          className="flex items-center gap-1 border-white/10 bg-transparent transition-colors hover:bg-white/10"
         >
+          <ChevronLeft className="size-4" />
           Previous
         </Button>
         <Button
@@ -523,9 +531,10 @@ export function Table({
           size="sm"
           onClick={() => table.nextPage()}
           disabled={!table.getCanNextPage()}
-          className="border-white/10 bg-transparent transition-colors hover:bg-white/10"
+          className="flex items-center gap-1 border-white/10 bg-transparent transition-colors hover:bg-white/10"
         >
           Next
+          <ChevronRight className="size-4" />
         </Button>
       </div>
     </div>

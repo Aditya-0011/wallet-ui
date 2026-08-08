@@ -40,7 +40,7 @@ import {
   type UpdateCategoryRequest,
 } from "@/lib/objects";
 import { useForm } from "@tanstack/react-form";
-import { Edit2, Smile } from "lucide-react";
+import { Edit2, Plus, Save, Smile, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 type FormProps =
@@ -152,7 +152,13 @@ export function Form({ data, isCreating, isUpdating, mutateAsync }: FormProps) {
             )
           }
         >
-          {data ? <Edit2 className="size-4" /> : "Add"}
+          {data ? (
+            <Edit2 className="size-4" />
+          ) : (
+            <>
+              <Plus className="size-4" /> Add
+            </>
+          )}
         </DialogTrigger>
         <DialogContent
           className="border border-white bg-neutral-950"
@@ -334,8 +340,9 @@ export function Form({ data, isCreating, isUpdating, mutateAsync }: FormProps) {
                     variant="outline"
                     size="default"
                     onClick={() => reset()}
-                    className="rounded-md"
+                    className="flex items-center gap-1.5 rounded-md"
                   >
+                    <X className="size-4" />
                     Cancel
                   </Button>
                 }
@@ -344,8 +351,9 @@ export function Form({ data, isCreating, isUpdating, mutateAsync }: FormProps) {
                 form={formId}
                 type="submit"
                 disabled={isCreating || isUpdating}
-                className="rounded-md bg-neutral-950 text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:inset-ring hover:ring-amber-500"
+                className="flex items-center gap-1.5 rounded-md bg-neutral-950 text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:inset-ring hover:ring-amber-500"
               >
+                <Save className="size-4" />
                 Save
               </Button>
             </Field>

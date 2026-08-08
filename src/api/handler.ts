@@ -6,6 +6,7 @@ import {
   type ServiceList,
 } from "@/lib/objects";
 import {
+  keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
@@ -28,6 +29,7 @@ async function fetcher<Request, Response>(
   variables: Request | undefined,
   method: RequestMethod,
   textOnlyResponse: boolean,
+  isBlob?: boolean,
 ): Promise<Response> {
   try {
     const res = await fetch(`${appApiMapping[app]}${url}`, {
@@ -42,6 +44,18 @@ async function fetcher<Request, Response>(
     if (!res.ok) {
       const msg = await res.text();
       throw new FetchError(msg || res.statusText, res.status);
+    }
+
+    if (isBlob) {
+      const disposition = res.headers.get("Content-Disposition");
+      let file_name = "download";
+      if (disposition && disposition.includes("filename=")) {
+        file_name = disposition.split("filename=")[1].replace(/["']/g, "");
+      }
+      const content_type =
+        res.headers.get("Content-Type") || "application/octet-stream";
+      const file_data = await res.blob();
+      return { file_data, file_name, content_type } as unknown as Response;
     }
 
     if (textOnlyResponse) {
@@ -71,22 +85,25 @@ export function useDataQuery<Request, Response>(
     enabled?: boolean;
     isQuery?: boolean;
     variables?: Request;
+    keepPreviousData?: boolean;
+    isBlob?: boolean;
   },
 ) {
   const { logout } = useAuth();
 
   return useQuery<Response, Error>({
     queryKey:
-      options?.variables && options?.isQuery
+      options?.variables && options?.isQuery && options?.isBlob
         ? [
             ...key,
             options.variables,
             options.isQuery,
+            options.isBlob,
             url,
             app,
             textOnlyResponse,
           ]
-        : [...key, url, app, textOnlyResponse],
+        : [...key, url, app, textOnlyResponse, options?.isBlob],
     queryFn: () =>
       fetcher<Request, Response>(
         app,
@@ -94,10 +111,12 @@ export function useDataQuery<Request, Response>(
         options?.variables,
         options?.isQuery ? "QUERY" : "GET",
         textOnlyResponse,
+        options?.isBlob,
       ),
     enabled: options?.enabled ?? true,
-    staleTime: options?.staleTime ?? 30 * 60 * 1000,
+    staleTime: options?.staleTime ?? 0,
     refetchInterval: options?.refetchInterval,
+    placeholderData: options?.keepPreviousData ? keepPreviousData : undefined,
     retry: (failureCount, error) => {
       if (error instanceof FetchError) {
         if (

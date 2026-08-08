@@ -35,7 +35,7 @@ import {
 } from "@/lib/objects";
 import { cn } from "@/lib/utils";
 import { useForm } from "@tanstack/react-form";
-import { Edit2 } from "lucide-react";
+import { Edit2, Plus, Save, X } from "lucide-react";
 import { useState } from "react";
 
 type FormProps =
@@ -136,11 +136,18 @@ export function Form({
                 className="rounded-md text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:ring hover:ring-amber-500"
               />
             ) : (
-              <Button className="rounded-md bg-amber-500 hover:bg-neutral-950 hover:text-amber-500 hover:ring hover:ring-amber-500" />
+              <Button className="flex items-center gap-1.5 rounded-md bg-amber-500 hover:bg-neutral-950 hover:text-amber-500 hover:ring hover:ring-amber-500" />
             )
           }
         >
-          {data ? <Edit2 className="size-4" /> : "Add"}
+          {data ? (
+            <Edit2 className="size-4" />
+          ) : (
+            <>
+              <Plus className="size-4" />
+              Add
+            </>
+          )}
         </DialogTrigger>
         <DialogContent
           className="border border-white bg-neutral-950"
@@ -322,8 +329,9 @@ export function Form({
                     variant="outline"
                     size="default"
                     onClick={() => reset()}
-                    className="rounded-md"
+                    className="flex items-center gap-1.5 rounded-md"
                   >
+                    <X className="size-4" />
                     Cancel
                   </Button>
                 }
@@ -332,8 +340,9 @@ export function Form({
                 form={formId}
                 type="submit"
                 disabled={isCreating || isUpdating}
-                className="rounded-md bg-neutral-950 text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:inset-ring hover:ring-amber-500"
+                className="flex items-center gap-1.5 rounded-md bg-neutral-950 text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:inset-ring hover:ring-amber-500"
               >
+                <Save className="size-4" />
                 Save
               </Button>
             </Field>

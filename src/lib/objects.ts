@@ -212,6 +212,38 @@ export type CreateTransactionRequest = z.infer<
   typeof CreateTransactionRequestSchema
 >;
 
+export const ExportTransactionsRequestSchema = z
+  .object({
+    start_date: GrpcTimeSchema,
+    end_date: GrpcTimeSchema,
+  })
+  .refine(
+    (x) => {
+      if (!x.start_date || !x.end_date) return true;
+      const start = x.start_date.seconds + x.start_date.nanos / 1e9;
+      const end = x.end_date.seconds + x.end_date.nanos / 1e9;
+      return end >= start;
+    },
+    {
+      error: "end date must be after or equal to start date",
+      path: ["end_date"],
+    },
+  );
+
+export type ExportTransactionsRequest = z.infer<
+  typeof ExportTransactionsRequestSchema
+>;
+
+export const ExportTransactionsResponseSchema = z.object({
+  file_data: z.instanceof(Blob),
+  file_name: z.string(),
+  content_type: z.string(),
+});
+
+export type ExportTransactionsResponse = z.infer<
+  typeof ExportTransactionsResponseSchema
+>;
+
 export const UpdateTransactionRequestSchema = z.object({
   id: z.number(),
   category_id: z

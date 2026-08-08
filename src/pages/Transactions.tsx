@@ -1,6 +1,8 @@
 import { useDataMutation, useDataQuery } from "@/api/handler";
 import { Error } from "@/components/Error";
 import { Loading } from "@/components/Loading";
+import { Export } from "@/components/pages/transactions/Export";
+import { Filters } from "@/components/pages/transactions/Filters";
 import { Form } from "@/components/pages/transactions/Form";
 import { Table } from "@/components/pages/transactions/Table";
 import {
@@ -21,8 +23,8 @@ export default function Transactions() {
   const [filters, setFilters] = useState<GetTransactionsRequest>({
     limit: 50,
     page: 1,
-    start_date: DateTime.now().startOf("month").toGrpcTime(),
-    end_date: DateTime.now().endOf("day").toGrpcTime(),
+    start_date: DateTime.now().startOf("week").toGrpcTime(),
+    end_date: DateTime.now().endOf("week").toGrpcTime(),
   });
 
   const {
@@ -35,11 +37,13 @@ export default function Transactions() {
     ["categories"],
     "/category/list",
     false,
+    { staleTime: 30 * 60 * 1000 },
   );
 
   const {
     data: transactions,
     isLoading: isTransactionsLoading,
+    isFetching: isTransactionsFetching,
     isError: isTransactionsError,
     error: transactionsError,
   } = useDataQuery<GetTransactionsRequest, GetTransactionsResponse>(
@@ -50,6 +54,7 @@ export default function Transactions() {
     {
       isQuery: true,
       variables: filters,
+      keepPreviousData: true,
     },
   );
 
@@ -140,26 +145,35 @@ export default function Transactions() {
 
   return (
     <div className="flex w-full flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold">Transactions</h1>
+          <h1 className="text-2xl font-semibold sm:text-3xl">Transactions</h1>
           <p className="text-muted-foreground mt-1 text-xs">
             Hmmm, quite rich?
           </p>
         </div>
-        <Form
-          categories={categories?.categories || []}
-          isCreating={isCreating}
-          mutateAsync={createAsync}
-        />
+        <div className="flex shrink-0 items-center gap-3">
+          <Export />
+          <Form
+            categories={categories?.categories || []}
+            isCreating={isCreating}
+            mutateAsync={createAsync}
+          />
+        </div>
       </div>
+
+      <Filters
+        filters={filters}
+        setFilters={setFilters}
+        categories={categories?.categories || []}
+      />
 
       <Table
         transactions={transactionList}
         categories={categories?.categories || []}
         backendPage={filters.page}
         setBackendPage={(p) => setFilters({ ...filters, page: p })}
-        isLoading={isTransactionsLoading}
+        isLoading={isTransactionsFetching}
         isUpdating={isUpdating}
         isDeleting={isDeleting}
         updateAsync={updateAsync}

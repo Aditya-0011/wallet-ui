@@ -109,7 +109,6 @@
   }
 }
 
-/* Hide number input spinners */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
@@ -117,4 +116,105 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 input[type="number"] {
   -moz-appearance: textfield;
+}
+
+.transactions-calendar {
+  --cell-radius: 9999px !important;
+}
+
+.transactions-calendar .rdp-range_start,
+.transactions-calendar .rdp-range_end,
+.transactions-calendar .rdp-today:not(.rdp-range_middle) {
+  background-color: color-mix(
+    in srgb,
+    var(--color-amber-500) 15%,
+    transparent
+  ) !important;
+}
+
+.transactions-calendar .rdp-range_start::after,
+.transactions-calendar .rdp-range_end::after {
+  background-color: color-mix(
+    in srgb,
+    var(--color-amber-500) 15%,
+    transparent
+  ) !important;
+}
+
+.transactions-calendar [data-range-start="true"],
+.transactions-calendar [data-range-end="true"],
+.transactions-calendar [data-selected-single="true"] {
+  background-color: var(--color-amber-500) !important;
+  color: var(--color-neutral-950) !important;
+  border-radius: 9999px !important;
+}
+
+.transactions-calendar [data-range-middle="true"] {
+  background-color: color-mix(
+    in srgb,
+    var(--color-amber-500) 15%,
+    transparent
+  ) !important;
+  color: var(--color-amber-500) !important;
+}
+
+.transactions-calendar td.rdp-range_start:last-child::after,
+.transactions-calendar td.rdp-range_end:first-child::after {
+  display: none !important;
+}
+
+.transactions-calendar td.rdp-range_start,
+.transactions-calendar td.rdp-range_middle:first-child,
+.transactions-calendar td.rdp-range_end:first-child {
+  border-top-left-radius: 9999px !important;
+  border-bottom-left-radius: 9999px !important;
+}
+
+.transactions-calendar td.rdp-range_end,
+.transactions-calendar td.rdp-range_middle:last-child,
+.transactions-calendar td.rdp-range_start:last-child {
+  border-top-right-radius: 9999px !important;
+  border-bottom-right-radius: 9999px !important;
+}
+
+.transactions-calendar
+  td.rdp-today:not(.rdp-range_middle):not(.rdp-range_start):not(
+    .rdp-range_end
+  ) {
+  border-radius: 9999px !important;
+}
+
+.transactions-calendar td:first-child [data-range-middle="true"] {
+  border-top-left-radius: 9999px !important;
+  border-bottom-left-radius: 9999px !important;
+}
+.transactions-calendar td:last-child [data-range-middle="true"] {
+  border-top-right-radius: 9999px !important;
+  border-bottom-right-radius: 9999px !important;
+}
+
+.transactions-calendar
+  .rdp-today
+  button:not([data-range-start="true"]):not([data-range-end="true"]):not(
+    [data-selected-single="true"]
+  ) {
+  color: var(--color-amber-500) !important;
+}
+
+.transactions-calendar
+  button:hover:not([disabled]):not([data-range-start="true"]):not(
+    [data-range-end="true"]
+  ):not([data-selected-single="true"]) {
+  background-color: color-mix(
+    in srgb,
+    var(--color-amber-500) 15%,
+    transparent
+  ) !important;
+  color: var(--color-amber-500) !important;
+}
+
+.transactions-calendar [data-focused="true"] button {
+  border-color: var(--color-amber-500) !important;
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--color-amber-500) 50%, transparent) !important;
 }

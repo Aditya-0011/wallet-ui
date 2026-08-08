@@ -18,7 +18,7 @@ DateTime.prototype.toGrpcTime = function (this: DateTime): GrpcTime {
 
 export function formatCurrency(val: BigNumber | string | number): string {
   const amount = BigNumber.isBigNumber(val) ? val : new BigNumber(val || "0");
-  return `₹ ${amount.toFormat(2).replace(/\.00$/, "")}`;
+  return `₹${amount.toFormat(2).replace(/\.00$/, "")}`;
 }
 
 type FormatDateOptions =
