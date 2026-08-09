@@ -59,12 +59,12 @@ This section explains how to run the wallet UI locally.
 
 Export these variables directly in your `.env` file:
 
-| Variable | Description | Required |
-| :--- | :--- | :---: |
-| `VITE_AUTH_API_URL` | Endpoint for the public auth API routes | **Yes** |
-| `VITE_WALLET_API_URL` | Endpoint for the public wallet API routes | **Yes** |
-| `VITE_CONSOLE_URL` | Base URL of the deployed console UI | **Yes** |
-| `Development` | Boolean flag setting the environment to development mode | No |
+| Variable              | Description                                              | Required |
+| :-------------------- | :------------------------------------------------------- | :------: |
+| `VITE_AUTH_API_URL`   | Endpoint for the public auth API routes                  | **Yes**  |
+| `VITE_WALLET_API_URL` | Endpoint for the public wallet API routes                | **Yes**  |
+| `VITE_CONSOLE_URL`    | Base URL of the deployed console UI                      | **Yes**  |
+| `Development`         | Boolean flag setting the environment to development mode |    No    |
 
 ### Running locally
 
