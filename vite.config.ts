@@ -3,6 +3,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import path from "node:path";
 import { defineConfig } from "vite";
+import { redact } from "@tanstack/redact/vite";
 
 // https://vite.dev/config/
 export default defineConfig(({ command }) => {
@@ -12,6 +13,10 @@ export default defineConfig(({ command }) => {
       tailwindcss(),
       react(),
       babel({ presets: [reactCompilerPreset()] }),
+      redact({
+        preset: "full",
+        features: { viewTransitions: false },
+      }),
     ],
     resolve: {
       alias: {
@@ -24,32 +29,24 @@ export default defineConfig(({ command }) => {
           codeSplitting: {
             groups: [
               {
-                name: "react-vendor",
-                test: /node_modules\/(react|react-dom)/,
+                name: "react-router",
+                test: /node_modules\/react-router\//,
               },
               {
-                name: "tanstack-vendor",
-                test: /node_modules\/@tanstack/,
-              },
-              {
-                name: "base-ui",
-                test: /node_modules\/@base-ui/,
+                name: "react-query",
+                test: /node_modules\/@tanstack\/(query-core|react-query)\//,
               },
               {
                 name: "lucide-react",
-                test: /node_modules\/lucide-react/,
+                test: /node_modules\/lucide-react\//,
               },
               {
                 name: "luxon",
-                test: /node_modules\/luxon/,
-              },
-              {
-                name: "react-router",
-                test: /node_modules\/react-router/,
+                test: /node_modules\/luxon\//,
               },
               {
                 name: "zod",
-                test: /node_modules\/zod/,
+                test: /node_modules\/zod\//,
               },
             ],
           },

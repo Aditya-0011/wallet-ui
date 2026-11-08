@@ -1,3 +1,7 @@
+import { useState } from "react";
+
+import { Trash2 } from "lucide-react";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -9,16 +13,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+
 import { Button } from "@/components/ui/button";
-import { type SimpleResponse } from "@/lib/objects";
-import { Trash2 } from "lucide-react";
 
 type DeleteProps<T extends string | number> = {
   id: T;
   description: string;
   name: string;
   isDeleting: boolean;
-  mutateAsync: (request: { id: T }) => Promise<SimpleResponse>;
+  onDelete: (request: { id: T }) => void;
 };
 
 export function Delete<T extends string | number>({
@@ -26,20 +29,25 @@ export function Delete<T extends string | number>({
   description,
   name,
   isDeleting,
-  mutateAsync,
+  onDelete,
 }: DeleteProps<T>) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <AlertDialog>
+    <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger
         render={
           <Button
             variant="ghost"
             size="icon-sm"
+            aria-label={`Delete ${name}`}
+            title={`Delete ${name}`}
+            disabled={isDeleting}
             className="rounded-md text-red-500 hover:bg-red-500/10 hover:text-red-600 hover:ring hover:ring-red-500"
           />
         }
       >
-        <Trash2 className="size-4" />
+        <Trash2 aria-hidden="true" />
       </AlertDialogTrigger>
       <AlertDialogContent className="min-w-fit rounded-lg border border-red-500 bg-neutral-950">
         <AlertDialogHeader>
@@ -56,7 +64,10 @@ export function Delete<T extends string | number>({
           <AlertDialogCancel className="rounded-md">Cancel</AlertDialogCancel>
           <AlertDialogAction
             className="rounded-md bg-neutral-950 text-red-500 hover:bg-red-500/10 hover:text-red-600 hover:ring hover:ring-red-500"
-            onClick={() => mutateAsync({ id })}
+            onClick={() => {
+              onDelete({ id });
+              setOpen(false);
+            }}
             disabled={isDeleting}
           >
             Delete

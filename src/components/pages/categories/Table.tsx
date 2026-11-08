@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -20,12 +21,12 @@ import {
 import {
   type Category,
   type DeleteRequest,
-  type SimpleResponse,
   type UpdateCategoryRequest,
   CategoryType,
   getCategoryTypeLabel,
 } from "@/lib/objects";
-import { cn, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import {
   type RankingInfo,
   compareItems,
@@ -62,6 +63,7 @@ import {
   Search,
 } from "lucide-react";
 import { useState } from "react";
+import { grpcTimeMillis } from "@/lib/time";
 
 const fuzzyFilter: FilterFn<typeof features, Category> = (
   row,
@@ -105,6 +107,7 @@ function NameHeader<TValue>({
     return (
       <Input
         autoFocus
+        aria-label="Filter categories by name"
         placeholder="Filter name..."
         value={localValue}
         onChange={(e) => {
@@ -132,11 +135,16 @@ function NameHeader<TValue>({
 
   return (
     <button
+      type="button"
+      aria-label={
+        isFiltered ? `Name (filtered by "${localValue}")` : "Filter by name"
+      }
       className="hover:text-foreground flex items-center gap-1.5 transition-colors"
       onClick={() => setOpen(true)}
     >
       <span>Name</span>
       <Search
+        aria-hidden="true"
         size={12}
         className={cn("text-muted-foreground", isFiltered && "text-amber-500")}
       />
@@ -176,25 +184,30 @@ function TypeHeader<TValue>({
           if (!isOpen) setOpen(false);
         }}
       >
-        <SelectTrigger className="text-muted-foreground border-input bg-background h-7 w-28 rounded-md border px-2 text-xs focus-visible:border-amber-500 focus-visible:ring-0 focus-visible:ring-amber-500">
+        <SelectTrigger
+          aria-label="Filter categories by type"
+          className="text-muted-foreground border-input bg-background h-7 w-28 rounded-md border px-2 text-xs focus-visible:border-amber-500 focus-visible:ring-0 focus-visible:ring-amber-500"
+        >
           <SelectValue placeholder="All" />
         </SelectTrigger>
         <SelectContent className="border-input rounded-md border px-1 py-2">
-          <SelectItem value="all" className="rounded-md">
-            All Types
-          </SelectItem>
-          <SelectItem
-            value={CategoryType.Income.toString()}
-            className="rounded-md"
-          >
-            Income
-          </SelectItem>
-          <SelectItem
-            value={CategoryType.Expense.toString()}
-            className="rounded-md"
-          >
-            Expense
-          </SelectItem>
+          <SelectGroup>
+            <SelectItem value="all" className="rounded-md">
+              All Types
+            </SelectItem>
+            <SelectItem
+              value={CategoryType.Income.toString()}
+              className="rounded-md"
+            >
+              Income
+            </SelectItem>
+            <SelectItem
+              value={CategoryType.Expense.toString()}
+              className="rounded-md"
+            >
+              Expense
+            </SelectItem>
+          </SelectGroup>
         </SelectContent>
       </Select>
     );
@@ -204,11 +217,14 @@ function TypeHeader<TValue>({
 
   return (
     <button
+      type="button"
+      aria-label={isFiltered ? "Type (filtered)" : "Filter by type"}
       className="hover:text-foreground flex items-center gap-1.5 transition-colors"
       onClick={() => setOpen(true)}
     >
       <span>Type</span>
       <Filter
+        aria-hidden="true"
         size={12}
         className={cn("text-muted-foreground", isFiltered && "text-amber-500")}
       />
@@ -220,16 +236,18 @@ type CategoriesTableProps = {
   categories: Category[];
   isUpdating: boolean;
   isDeleting: boolean;
-  updateAsync: (req: UpdateCategoryRequest) => Promise<SimpleResponse>;
-  deleteAsync: (req: DeleteRequest) => Promise<SimpleResponse>;
+  updateAsync: (req: UpdateCategoryRequest) => Promise<boolean>;
+  onDelete: (req: DeleteRequest) => void;
 };
 
 type CategoriesTableMeta = {
   isUpdating: boolean;
   isDeleting: boolean;
-  updateAsync: (req: UpdateCategoryRequest) => Promise<SimpleResponse>;
-  deleteAsync: (req: DeleteRequest) => Promise<SimpleResponse>;
+  updateAsync: (req: UpdateCategoryRequest) => Promise<boolean>;
+  onDelete: (req: DeleteRequest) => void;
 };
+
+const getRowId = (row: Category) => String(row.id);
 
 const features = tableFeatures({
   tableMeta: metaHelper<CategoriesTableMeta>(),
@@ -284,7 +302,7 @@ const columns = helper.columns([
       return value === undefined || row.getValue(id) === value;
     },
   }),
-  helper.accessor((row) => row.created_at?.seconds, {
+  helper.accessor((row) => grpcTimeMillis(row.created_at), {
     id: "createdAt",
     header: ({ column, table }) => {
       return (
@@ -306,8 +324,9 @@ const columns = helper.columns([
               table.setColumnVisibility({ createdAt: false, updatedAt: true })
             }
             title="Switch to Updated"
+            aria-label="Show updated date instead"
           >
-            <ArrowRightLeft size={14} />
+            <ArrowRightLeft size={14} aria-hidden="true" />
           </Button>
         </div>
       );
@@ -322,7 +341,7 @@ const columns = helper.columns([
       );
     },
   }),
-  helper.accessor((row) => row.updated_at?.seconds, {
+  helper.accessor((row) => grpcTimeMillis(row.updated_at), {
     id: "updatedAt",
     header: ({ column, table }) => {
       return (
@@ -344,8 +363,9 @@ const columns = helper.columns([
               table.setColumnVisibility({ createdAt: true, updatedAt: false })
             }
             title="Switch to Created"
+            aria-label="Show created date instead"
           >
-            <ArrowRightLeft size={14} />
+            <ArrowRightLeft size={14} aria-hidden="true" />
           </Button>
         </div>
       );
@@ -354,7 +374,8 @@ const columns = helper.columns([
       const isUpdated =
         row.original.updated_at &&
         row.original.created_at &&
-        row.original.updated_at.seconds > row.original.created_at.seconds;
+        grpcTimeMillis(row.original.updated_at) >
+          grpcTimeMillis(row.original.created_at);
 
       return (
         <div className="text-muted-foreground pr-4 text-center text-sm">
@@ -382,14 +403,14 @@ const columns = helper.columns([
           <Form
             data={row.original}
             isUpdating={meta.isUpdating}
-            mutateAsync={meta.updateAsync}
+            submit={meta.updateAsync}
           />
           <Delete
             id={row.original.id}
             description="This action cannot be undone. This will delete the category"
             name={row.original.name}
             isDeleting={meta.isDeleting}
-            mutateAsync={meta.deleteAsync}
+            onDelete={meta.onDelete}
           />
         </div>
       );
@@ -402,10 +423,12 @@ export function Table({
   isUpdating,
   isDeleting,
   updateAsync,
-  deleteAsync,
+  onDelete,
 }: CategoriesTableProps) {
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [{ sorting, columnFilters }, setSortAndFilter] = useState<{
+    sorting: SortingState;
+    columnFilters: ColumnFiltersState;
+  }>({ sorting: [], columnFilters: [] });
   const [columnVisibility, setColumnVisibility] =
     useState<ColumnVisibilityState>({
       createdAt: true,
@@ -416,7 +439,7 @@ export function Table({
     isUpdating,
     isDeleting,
     updateAsync,
-    deleteAsync,
+    onDelete,
   };
 
   const table = useTable({
@@ -424,20 +447,27 @@ export function Table({
     data: categories,
     columns,
     meta,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: (updater) => {
-      setColumnFilters(updater);
-      setSorting((prevSorting) => {
+    getRowId,
+    onSortingChange: (updater) =>
+      setSortAndFilter((prev) => ({
+        ...prev,
+        sorting:
+          typeof updater === "function" ? updater(prev.sorting) : updater,
+      })),
+    onColumnFiltersChange: (updater) =>
+      setSortAndFilter((prev) => {
         const nextFilters =
-          typeof updater === "function" ? updater(columnFilters) : updater;
-        const nameFilter = nextFilters.find((f) => f.id === "name");
-
-        if (nameFilter && !prevSorting.find((s) => s.id === "name")) {
-          return [{ id: "name", desc: false }];
-        }
-        return prevSorting;
-      });
-    },
+          typeof updater === "function" ? updater(prev.columnFilters) : updater;
+        const hasNameFilter = nextFilters.some((f) => f.id === "name");
+        const sortsByName = prev.sorting.some((s) => s.id === "name");
+        return {
+          columnFilters: nextFilters,
+          sorting:
+            hasNameFilter && !sortsByName
+              ? [{ id: "name", desc: false }]
+              : prev.sorting,
+        };
+      }),
     onColumnVisibilityChange: setColumnVisibility,
     autoResetPageIndex: false,
     state: {

@@ -1,4 +1,4 @@
-import { useDataQuery } from "@/api/handler";
+import { isNotFoundError, useDataQuery } from "@/api/handler";
 import { Error } from "@/components/Error";
 import { Loading } from "@/components/Loading";
 import { Button } from "@/components/ui/button";
@@ -25,9 +25,8 @@ import {
   type GetTransactionsUpdateHistoryResponse,
   type Transaction,
   type TransactionsUpdateHistory,
-  type FetchError,
 } from "@/lib/objects";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/format";
 import {
   columnVisibilityFeature,
   createColumnHelper,
@@ -39,6 +38,8 @@ import { History } from "lucide-react";
 import { useState } from "react";
 
 const features = tableFeatures({ columnVisibilityFeature });
+const EMPTY_HISTORY: TransactionsUpdateHistory[] = [];
+const getRowId = (row: TransactionsUpdateHistory) => String(row.id);
 const helper = createColumnHelper<typeof features, TransactionsUpdateHistory>();
 
 const columns = helper.columns([
@@ -131,22 +132,19 @@ export function Table({ transaction }: HistoryTableProps) {
     },
   );
 
-  const isHistoryNotFoundError =
-    isError &&
-    error &&
-    "status" in error &&
-    (error as FetchError).status === 404;
+  const isHistoryNotFoundError = isNotFoundError(error);
 
   const hasHistoryError = isError && !isHistoryNotFoundError;
 
   const historyList = isHistoryNotFoundError
-    ? []
-    : (historyData?.history ?? []);
+    ? EMPTY_HISTORY
+    : (historyData?.history ?? EMPTY_HISTORY);
 
   const table = useTable({
     features,
     data: historyList,
     columns,
+    getRowId,
   });
 
   return (
@@ -158,10 +156,11 @@ export function Table({ transaction }: HistoryTableProps) {
             size="icon-sm"
             className="rounded-md text-sky-500 hover:bg-sky-500/10 hover:text-sky-400 hover:ring hover:ring-sky-500/50"
             title="View History"
+            aria-label={`View edit history of ${transaction.description}`}
           />
         }
       >
-        <History size={16} />
+        <History size={16} aria-hidden="true" />
       </DialogTrigger>
       <DialogContent
         className="border border-white bg-neutral-950 sm:max-w-3xl"

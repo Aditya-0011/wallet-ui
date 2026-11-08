@@ -1,7 +1,8 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type UserSummaryResponse } from "@/lib/objects";
-import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import BigNumber from "bignumber.js";
 import { TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { useState } from "react";

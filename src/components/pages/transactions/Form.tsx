@@ -29,7 +29,6 @@ import {
   UpdateTransactionRequestSchema,
   type Category,
   type CreateTransactionRequest,
-  type SimpleResponse,
   type Transaction,
   type UpdateTransactionRequest,
 } from "@/lib/objects";
@@ -44,21 +43,21 @@ type FormProps =
       categories: Category[];
       isCreating?: undefined;
       isUpdating: boolean;
-      mutateAsync: (req: UpdateTransactionRequest) => Promise<SimpleResponse>;
+      submit: (req: UpdateTransactionRequest) => Promise<boolean>;
     }
   | {
       data?: undefined;
       categories: Category[];
       isCreating: boolean;
       isUpdating?: undefined;
-      mutateAsync: (req: CreateTransactionRequest) => Promise<SimpleResponse>;
+      submit: (req: CreateTransactionRequest) => Promise<boolean>;
     };
 
 export function Form({
   data,
   isCreating,
   isUpdating,
-  mutateAsync,
+  submit,
   categories,
 }: FormProps) {
   const [open, setOpen] = useState(false);
@@ -92,20 +91,15 @@ export function Form({
         : CreateTransactionRequestSchema,
     },
     onSubmit: async ({ value }) => {
-      try {
-        if (data) {
-          await mutateAsync({
+      const saved = data
+        ? await submit({
             ...value,
             id: data.id,
-          } as UpdateTransactionRequest);
-        } else {
-          await mutateAsync(value as CreateTransactionRequest);
-        }
-        reset();
-        setOpen(false);
-      } catch {
-        //
-      }
+          } as UpdateTransactionRequest)
+        : await submit(value as CreateTransactionRequest);
+      if (!saved) return;
+      reset();
+      setOpen(false);
     },
   });
 
@@ -131,6 +125,7 @@ export function Form({
           render={
             data ? (
               <Button
+                aria-label={`Edit ${data.description}`}
                 variant="ghost"
                 size="icon-sm"
                 className="rounded-md text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:ring hover:ring-amber-500"
@@ -141,10 +136,10 @@ export function Form({
           }
         >
           {data ? (
-            <Edit2 className="size-4" />
+            <Edit2 aria-hidden="true" />
           ) : (
             <>
-              <Plus className="size-4" />
+              <Plus aria-hidden="true" />
               Add
             </>
           )}
@@ -189,11 +184,16 @@ export function Form({
                       value={field.state.value}
                       autoComplete="off"
                       onBlur={field.handleBlur}
-                      onChange={(e) => field.handleChange(e.target.value)}
+                      onChange={(e) =>
+                        field.handleChange(e.target.value.trim())
+                      }
                       aria-invalid={isInvalid}
                       disabled={isCreating || isUpdating}
-                      type="number"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                      maxLength={16}
+                      spellCheck={false}
                       required
                       className="border-input rounded-md border bg-neutral-950 focus-visible:border-amber-500 focus-visible:ring-0 focus-visible:ring-amber-500"
                     />
@@ -306,7 +306,9 @@ export function Form({
                       value={field.state.value}
                       autoComplete="off"
                       onBlur={field.handleBlur}
-                      onChange={(e) => field.handleChange(e.target.value)}
+                      onChange={(e) =>
+                        field.handleChange(e.target.value.trim())
+                      }
                       aria-invalid={isInvalid}
                       disabled={isCreating || isUpdating}
                       type="text"

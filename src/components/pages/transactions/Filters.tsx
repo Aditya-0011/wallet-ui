@@ -1,83 +1,81 @@
+import { useId, useState } from "react";
+import { ListFilter, RefreshCcw } from "lucide-react";
+import { type DateRange } from "react-day-picker";
+
 import { DateRangePicker } from "@/components/pages/transactions/ui/DateRangePicker";
 import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import {
+  dayRangeToGrpc,
+  grpcToPickerDate,
+  presetToGrpc,
+  presetToPicker,
+} from "@/lib/date-range";
+import {
   CategoryType,
   type Category,
   type GetTransactionsRequest,
 } from "@/lib/objects";
-import { ListFilter, RefreshCcw } from "lucide-react";
-import { DateTime } from "luxon";
-import { useState } from "react";
-import { type DateRange } from "react-day-picker";
 
 type FiltersProps = {
   filters: GetTransactionsRequest;
-  setFilters: (filters: GetTransactionsRequest) => void;
+  onApply: (filters: GetTransactionsRequest) => void;
   categories: Category[];
 };
 
-export function Filters({ filters, setFilters, categories }: FiltersProps) {
+export function Filters({ filters, onApply, categories }: FiltersProps) {
+  const typeId = useId();
+  const categoryId = useId();
+  const dateId = useId();
+
   const [localType, setLocalType] = useState<CategoryType | "all">(
     filters.type ?? "all",
   );
   const [localCategoryId, setLocalCategoryId] = useState<number | "all">(
     filters.category_id ?? "all",
   );
+  const [date, setDate] = useState<DateRange | undefined>(() => ({
+    from: filters.start_date ? grpcToPickerDate(filters.start_date) : undefined,
+    to: filters.end_date ? grpcToPickerDate(filters.end_date) : undefined,
+  }));
 
-  const [date, setDate] = useState<DateRange | undefined>({
-    from: filters.start_date
-      ? DateTime.fromSeconds(filters.start_date.seconds).toJSDate()
-      : undefined,
-    to: filters.end_date
-      ? DateTime.fromSeconds(filters.end_date.seconds).toJSDate()
-      : undefined,
-  });
-
-  const filteredCategories = categories.filter((c) =>
-    localType === "all" ? true : c.type === localType,
-  );
+  const filteredCategories =
+    localType === "all"
+      ? categories
+      : categories.filter((c) => c.type === localType);
 
   const handleApply = () => {
-    setFilters({
+    const range =
+      date?.from && date.to
+        ? dayRangeToGrpc(date.from, date.to)
+        : date?.from
+          ? dayRangeToGrpc(date.from, date.from)
+          : { start_date: undefined, end_date: undefined };
+
+    onApply({
       ...filters,
-      page: 1,
       type: localType === "all" ? undefined : localType,
       category_id: localCategoryId === "all" ? undefined : localCategoryId,
-      start_date: date?.from
-        ? DateTime.fromJSDate(date.from).startOf("day").toGrpcTime()
-        : undefined,
-      end_date: date?.to
-        ? DateTime.fromJSDate(date.to).endOf("day").toGrpcTime()
-        : undefined,
+      ...range,
     });
   };
 
   const handleReset = () => {
-    const now = DateTime.now();
-    const thisWeekStart = now.startOf("week");
-    const thisWeekEnd = now.endOf("week");
-
     setLocalType("all");
     setLocalCategoryId("all");
-    setDate({
-      from: thisWeekStart.toJSDate(),
-      to: thisWeekEnd.toJSDate(),
-    });
-
-    setFilters({
+    setDate(presetToPicker("this_week"));
+    onApply({
       ...filters,
-      page: 1,
       type: undefined,
       category_id: undefined,
-      start_date: thisWeekStart.toGrpcTime(),
-      end_date: thisWeekEnd.toGrpcTime(),
+      ...presetToGrpc("this_week"),
     });
   };
 
@@ -88,7 +86,10 @@ export function Filters({ filters, setFilters, categories }: FiltersProps) {
     <div className="mb-4 flex w-full flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div className="grid w-full grid-cols-2 gap-3 lg:flex lg:w-auto lg:flex-1 lg:flex-nowrap lg:items-end">
         <div className="col-span-1 flex flex-col lg:w-35">
-          <span className="text-muted-foreground mb-1.5 pl-1 text-xs font-medium">
+          <span
+            id={typeId}
+            className="text-muted-foreground mb-1.5 pl-1 text-xs font-medium"
+          >
             Type
           </span>
           <Select
@@ -105,7 +106,7 @@ export function Filters({ filters, setFilters, categories }: FiltersProps) {
               }
             }}
           >
-            <SelectTrigger className={inputClass}>
+            <SelectTrigger className={inputClass} aria-labelledby={typeId}>
               <SelectValue>
                 {(val: string | null) => {
                   if (!val || val === "all") return "All";
@@ -116,19 +117,24 @@ export function Filters({ filters, setFilters, categories }: FiltersProps) {
               </SelectValue>
             </SelectTrigger>
             <SelectContent className="border-input rounded-md border bg-neutral-950 px-1 py-2">
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value={CategoryType.Income.toString()}>
-                Income
-              </SelectItem>
-              <SelectItem value={CategoryType.Expense.toString()}>
-                Expense
-              </SelectItem>
+              <SelectGroup>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value={CategoryType.Income.toString()}>
+                  Income
+                </SelectItem>
+                <SelectItem value={CategoryType.Expense.toString()}>
+                  Expense
+                </SelectItem>
+              </SelectGroup>
             </SelectContent>
           </Select>
         </div>
 
         <div className="col-span-1 flex flex-col lg:w-45">
-          <span className="text-muted-foreground mb-1.5 pl-1 text-xs font-medium">
+          <span
+            id={categoryId}
+            className="text-muted-foreground mb-1.5 pl-1 text-xs font-medium"
+          >
             Category
           </span>
           <Select
@@ -137,7 +143,7 @@ export function Filters({ filters, setFilters, categories }: FiltersProps) {
               setLocalCategoryId(val === "all" ? "all" : Number(val))
             }
           >
-            <SelectTrigger className={inputClass}>
+            <SelectTrigger className={inputClass} aria-labelledby={categoryId}>
               <SelectValue>
                 {(val: string | null) => {
                   if (!val || val === "all") return "All";
@@ -146,7 +152,7 @@ export function Filters({ filters, setFilters, categories }: FiltersProps) {
                   );
                   return selectedCategory ? (
                     <div className="flex items-center gap-2">
-                      <span>{selectedCategory.icon}</span>
+                      <span aria-hidden="true">{selectedCategory.icon}</span>
                       <span className="truncate">{selectedCategory.name}</span>
                     </div>
                   ) : (
@@ -156,27 +162,33 @@ export function Filters({ filters, setFilters, categories }: FiltersProps) {
               </SelectValue>
             </SelectTrigger>
             <SelectContent className="border-input rounded-md border bg-neutral-950 px-1 py-2">
-              <SelectItem value="all">All</SelectItem>
-              {filteredCategories.map((c) => (
-                <SelectItem key={c.id} value={c.id.toString()}>
-                  <div className="flex items-center gap-2">
-                    <span>{c.icon}</span>
-                    <span>{c.name}</span>
-                  </div>
-                </SelectItem>
-              ))}
+              <SelectGroup>
+                <SelectItem value="all">All</SelectItem>
+                {filteredCategories.map((c) => (
+                  <SelectItem key={c.id} value={c.id.toString()}>
+                    <div className="flex items-center gap-2">
+                      <span aria-hidden="true">{c.icon}</span>
+                      <span>{c.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
         </div>
 
         <div className="col-span-2 flex flex-col lg:col-span-1 lg:w-65">
-          <span className="text-muted-foreground mb-1.5 pl-1 text-xs font-medium">
+          <span
+            id={dateId}
+            className="text-muted-foreground mb-1.5 pl-1 text-xs font-medium"
+          >
             Date Range
           </span>
           <DateRangePicker
             date={date}
             setDate={setDate}
             className={inputClass}
+            labelledBy={dateId}
           />
         </div>
       </div>
@@ -187,7 +199,7 @@ export function Filters({ filters, setFilters, categories }: FiltersProps) {
           onClick={handleReset}
           className="flex h-9 w-full items-center gap-2 rounded-md lg:w-auto"
         >
-          <RefreshCcw className="size-4" />
+          <RefreshCcw data-icon="inline-start" aria-hidden="true" />
           Reset
         </Button>
         <Button
@@ -195,7 +207,7 @@ export function Filters({ filters, setFilters, categories }: FiltersProps) {
           onClick={handleApply}
           className="flex h-9 w-full items-center gap-2 rounded-md bg-neutral-950 text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:inset-ring hover:ring-amber-500 lg:w-auto"
         >
-          <ListFilter className="size-4" />
+          <ListFilter data-icon="inline-start" aria-hidden="true" />
           Filter
         </Button>
       </div>

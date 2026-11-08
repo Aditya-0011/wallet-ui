@@ -1,10 +1,3 @@
-import { useAuth } from "@/contexts/AuthContext";
-import {
-  FetchError,
-  type RequestMethod,
-  type ServiceApiMapping,
-  type ServiceList,
-} from "@/lib/objects";
 import {
   keepPreviousData,
   useMutation,
@@ -12,62 +5,149 @@ import {
   useQueryClient,
   type QueryKey,
 } from "@tanstack/react-query";
-import { toast } from "sonner";
 
-const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL;
-const WALLET_API_URL = import.meta.env.VITE_WALLET_API_URL;
-const CONSOLE_URL = import.meta.env.VITE_CONSOLE_URL;
+import { API_URLS, type ServiceList } from "@/lib/env";
+import { FetchError } from "@/lib/errors";
 
-const appApiMapping: ServiceApiMapping = {
-  auth: AUTH_API_URL,
-  wallet: WALLET_API_URL,
+export type RequestMethod = "GET" | "POST" | "QUERY";
+type ResponseKind = "json" | "text" | "blob";
+
+export type BlobResponse = {
+  file_data: Blob;
+  file_name: string;
+  content_type: string;
 };
 
-async function fetcher<Request, Response>(
+export type RequestMeta = {
+  skipAuthErrorHandling?: boolean;
+};
+
+export const OFFLINE_MESSAGE =
+  "You appear to be offline. Check your connection and try again.";
+export const RATE_LIMIT_MESSAGE = "Too many attempts, try again in a minute.";
+
+const MAX_RETRIES = 2;
+
+export function shouldRetry(failureCount: number, error: unknown): boolean {
+  if (failureCount >= MAX_RETRIES) return false;
+  return (
+    error instanceof FetchError && (error.status === 0 || error.status >= 500)
+  );
+}
+
+export function isNotFoundError(error: unknown): boolean {
+  return error instanceof FetchError && error.status === 404;
+}
+
+export function describeError(error: unknown): string {
+  if (error instanceof FetchError) {
+    if (error.status === 0) return OFFLINE_MESSAGE;
+    if (error.status === 429) return RATE_LIMIT_MESSAGE;
+    return error.message || `Request failed (${error.status})`;
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return "Something went wrong";
+}
+
+export function parseContentDispositionFilename(
+  header: string | null,
+): string | null {
+  if (!header) return null;
+  let name: string | null = null;
+  const extended = /filename\*\s*=\s*([^']*)'[^']*'([^;]+)/i.exec(header);
+  if (extended) {
+    try {
+      name = decodeURIComponent(extended[2].trim().replace(/^"|"$/g, ""));
+    } catch {
+      name = null;
+    }
+  }
+  if (!name) {
+    const quoted = /filename\s*=\s*"((?:\\.|[^"\\])*)"/i.exec(header);
+    if (quoted) name = quoted[1].replace(/\\(.)/g, "$1");
+  }
+  if (!name) {
+    const plain = /filename\s*=\s*([^;]+)/i.exec(header);
+    if (plain) name = plain[1].trim();
+  }
+  if (!name) return null;
+  const safe = name.replace(/[/\\]/g, "_").trim();
+  return safe || null;
+}
+
+function parseJsonObject(text: string): Record<string, unknown> | null {
+  try {
+    const value: unknown = JSON.parse(text);
+    return typeof value === "object" && value !== null
+      ? (value as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readErrorMessage(res: Response): Promise<string> {
+  const text = (await res.text().catch(() => "")).trim();
+  const body = text.startsWith("{") ? parseJsonObject(text) : null;
+  if (typeof body?.message === "string" && body.message) return body.message;
+  if (typeof body?.error === "string" && body.error) return body.error;
+  return text || res.statusText || `Request failed (${res.status})`;
+}
+
+export async function apiFetch<TResponse>(
   app: ServiceList,
   url: string,
-  variables: Request | undefined,
-  method: RequestMethod,
-  textOnlyResponse: boolean,
-  isBlob?: boolean,
-): Promise<Response> {
+  {
+    method = "GET",
+    body,
+    kind = "json",
+    signal,
+  }: {
+    method?: RequestMethod;
+    body?: unknown;
+    kind?: ResponseKind;
+    signal?: AbortSignal;
+  } = {},
+): Promise<TResponse> {
+  let res: Response;
   try {
-    const res = await fetch(`${appApiMapping[app]}${url}`, {
-      method: method,
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: variables ? JSON.stringify(variables) : undefined,
+    res = await fetch(`${API_URLS[app]}${url}`, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: method === "GET" ? undefined : JSON.stringify(body ?? {}),
       credentials: "include",
+      signal,
     });
-
-    if (!res.ok) {
-      const msg = await res.text();
-      throw new FetchError(msg || res.statusText, res.status);
-    }
-
-    if (isBlob) {
-      const disposition = res.headers.get("Content-Disposition");
-      let file_name = "download";
-      if (disposition && disposition.includes("filename=")) {
-        file_name = disposition.split("filename=")[1].replace(/["']/g, "");
-      }
-      const content_type =
-        res.headers.get("Content-Type") || "application/octet-stream";
-      const file_data = await res.blob();
-      return { file_data, file_name, content_type } as unknown as Response;
-    }
-
-    if (textOnlyResponse) {
-      return (await res.text()) as unknown as Response;
-    }
-
-    return await res.json();
   } catch (err: unknown) {
-    if (err instanceof FetchError) throw err;
-    const message =
-      err instanceof Error ? err.message : "Network request failed";
-    throw new FetchError(message, 0);
+    if (err instanceof DOMException && err.name === "AbortError") throw err;
+    throw new FetchError(OFFLINE_MESSAGE, 0);
+  }
+
+  if (!res.ok) {
+    throw new FetchError(await readErrorMessage(res), res.status);
+  }
+
+  if (kind === "blob") {
+    const file: BlobResponse = {
+      file_name:
+        parseContentDispositionFilename(
+          res.headers.get("Content-Disposition"),
+        ) ?? "download",
+      content_type:
+        res.headers.get("Content-Type") || "application/octet-stream",
+      file_data: await res.blob(),
+    };
+    return file as TResponse;
+  }
+
+  if (kind === "text") {
+    return (await res.text()) as TResponse;
+  }
+
+  try {
+    return (await res.json()) as TResponse;
+  } catch {
+    throw new FetchError("Invalid response from server", res.status);
   }
 }
 
@@ -77,10 +157,8 @@ export function useDataQuery<Request, Response>(
   url: string,
   textOnlyResponse: boolean,
   options?: {
-    invalidateKey?: QueryKey[];
     staleTime?: number;
     refetchInterval?: number;
-    onSuccess?: (data: Response) => void;
     skipAuthErrorHandling?: boolean;
     enabled?: boolean;
     isQuery?: boolean;
@@ -89,52 +167,31 @@ export function useDataQuery<Request, Response>(
     isBlob?: boolean;
   },
 ) {
-  const { logout } = useAuth();
+  const variables = options?.variables;
+  const isQuery = options?.isQuery ?? false;
+  const kind: ResponseKind = options?.isBlob
+    ? "blob"
+    : textOnlyResponse
+      ? "text"
+      : "json";
+  const meta: RequestMeta = {
+    skipAuthErrorHandling: options?.skipAuthErrorHandling,
+  };
 
-  return useQuery<Response, Error>({
-    queryKey:
-      options?.variables && options?.isQuery && options?.isBlob
-        ? [
-            ...key,
-            options.variables,
-            options.isQuery,
-            options.isBlob,
-            url,
-            app,
-            textOnlyResponse,
-          ]
-        : [...key, url, app, textOnlyResponse, options?.isBlob],
-    queryFn: () =>
-      fetcher<Request, Response>(
-        app,
-        url,
-        options?.variables,
-        options?.isQuery ? "QUERY" : "GET",
-        textOnlyResponse,
-        options?.isBlob,
-      ),
+  return useQuery<Response, FetchError>({
+    queryKey: [...key, app, url, kind, isQuery ? (variables ?? null) : null],
+    queryFn: ({ signal }) =>
+      apiFetch<Response>(app, url, {
+        method: isQuery ? "QUERY" : "GET",
+        body: isQuery ? variables : undefined,
+        kind,
+        signal,
+      }),
     enabled: options?.enabled ?? true,
-    staleTime: options?.staleTime ?? 0,
+    staleTime: options?.staleTime,
     refetchInterval: options?.refetchInterval,
     placeholderData: options?.keepPreviousData ? keepPreviousData : undefined,
-    retry: (failureCount, error) => {
-      if (error instanceof FetchError) {
-        if (
-          error.status === 401 ||
-          error.status === 404 ||
-          error.status === 0
-        ) {
-          return false;
-        }
-      }
-      return failureCount < 3;
-    },
-    meta: {
-      onSuccess: options?.onSuccess,
-      invalidateKey: options?.invalidateKey,
-      skipAuthErrorHandling: options?.skipAuthErrorHandling,
-      logout,
-    },
+    meta,
   });
 }
 
@@ -144,43 +201,40 @@ export function useDataMutation<Request, Response>(
   textOnlyResponse: boolean,
   options?: {
     invalidateKey?: QueryKey[];
-    onSuccess?: (data: Response) => void;
-    key?: QueryKey;
+    onSuccess?: (data: Response, variables: Request) => void;
+    skipAuthErrorHandling?: boolean;
   },
 ) {
   const queryClient = useQueryClient();
-  const { logout } = useAuth();
+  const meta: RequestMeta = {
+    skipAuthErrorHandling: options?.skipAuthErrorHandling,
+  };
 
   const mutation = useMutation<Response, FetchError, Request>({
     mutationFn: (variables) =>
-      fetcher<Request, Response>(app, url, variables, "POST", textOnlyResponse),
-    onSuccess: (data) => {
-      if (options?.onSuccess) options.onSuccess(data);
+      apiFetch<Response>(app, url, {
+        method: "POST",
+        body: variables,
+        kind: textOnlyResponse ? "text" : "json",
+      }),
+    onSuccess: async (data, variables) => {
+      options?.onSuccess?.(data, variables);
       if (options?.invalidateKey) {
-        for (const key of options.invalidateKey) {
-          queryClient.invalidateQueries({ queryKey: key });
-        }
+        await Promise.all(
+          options.invalidateKey.map((queryKey) =>
+            queryClient.invalidateQueries({ queryKey }),
+          ),
+        );
       }
     },
-    onError: (error) => {
-      if (error instanceof FetchError) {
-        if (error.status === 401 || error.status === 0) {
-          queryClient.clear();
-          logout();
-          toast.error(error.message);
-          window.location.href = `${CONSOLE_URL}/login?redirect=Manager`;
-          return;
-        }
-        toast.error(error.message);
-      }
-    },
+    meta,
   });
 
-  return {
-    ...mutation,
-    isError:
-      mutation.isError &&
-      mutation.error?.status !== 409 &&
-      mutation.error?.status !== 412,
-  };
+  const submit = (variables: Request): Promise<boolean> =>
+    mutation.mutateAsync(variables).then(
+      () => true,
+      () => false,
+    );
+
+  return { ...mutation, submit };
 }

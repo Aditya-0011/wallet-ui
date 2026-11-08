@@ -1,37 +1,50 @@
-import { useDataMutation, useDataQuery } from "@/api/handler";
+import { useState } from "react";
+import { toast } from "sonner";
+
+import { isNotFoundError, useDataMutation, useDataQuery } from "@/api/handler";
 import { Error } from "@/components/Error";
 import { Loading } from "@/components/Loading";
 import { Export } from "@/components/pages/transactions/Export";
 import { Filters } from "@/components/pages/transactions/Filters";
 import { Form } from "@/components/pages/transactions/Form";
-import { Table } from "@/components/pages/transactions/Table";
 import {
+  Table,
+  type TransactionsPagination,
+} from "@/components/pages/transactions/Table";
+import { presetToGrpc } from "@/lib/date-range";
+import {
+  type Category,
   type CreateTransactionRequest,
   type DeleteRequest,
-  type FetchError,
   type GetCategoriesResponse,
   type GetTransactionsRequest,
   type GetTransactionsResponse,
   type SimpleResponse,
+  type Transaction,
   type UpdateTransactionRequest,
 } from "@/lib/objects";
-import { DateTime } from "luxon";
-import { useState } from "react";
-import { toast } from "sonner";
+
+const BACKEND_PAGE_SIZE = 50;
+
+const EMPTY_CATEGORIES: Category[] = [];
+const EMPTY_TRANSACTIONS: Transaction[] = [];
+const INVALIDATE = [["transactions"], ["summary"]];
+const notifySuccess = (data: SimpleResponse) => toast.success(data.message);
+
+function initialFilters(): GetTransactionsRequest {
+  return { limit: BACKEND_PAGE_SIZE, page: 1, ...presetToGrpc("this_week") };
+}
 
 export default function Transactions() {
-  const [filters, setFilters] = useState<GetTransactionsRequest>({
-    limit: 50,
-    page: 1,
-    start_date: DateTime.now().startOf("week").toGrpcTime(),
-    end_date: DateTime.now().endOf("week").toGrpcTime(),
-  });
+  const [filters, setFilters] =
+    useState<GetTransactionsRequest>(initialFilters);
+  const [localPageIndex, setLocalPageIndex] = useState(0);
 
   const {
     data: categories,
     isLoading: isCategoriesLoading,
-    isError: isCategoriesError,
     error: categoriesError,
+    refetch: refetchCategories,
   } = useDataQuery<null, GetCategoriesResponse>(
     "wallet",
     ["categories"],
@@ -44,8 +57,8 @@ export default function Transactions() {
     data: transactions,
     isLoading: isTransactionsLoading,
     isFetching: isTransactionsFetching,
-    isError: isTransactionsError,
     error: transactionsError,
+    refetch: refetchTransactions,
   } = useDataQuery<GetTransactionsRequest, GetTransactionsResponse>(
     "wallet",
     ["transactions"],
@@ -58,90 +71,77 @@ export default function Transactions() {
     },
   );
 
-  const {
-    mutateAsync: createAsync,
-    isPending: isCreating,
-    isError: isCreateError,
-  } = useDataMutation<CreateTransactionRequest, SimpleResponse>(
-    "wallet",
-    "/transaction/add",
-    false,
-    {
-      invalidateKey: [["transactions"]],
-      onSuccess: (data) => {
-        toast.success(data.message);
-      },
-    },
-  );
+  const { submit: createAsync, isPending: isCreating } = useDataMutation<
+    CreateTransactionRequest,
+    SimpleResponse
+  >("wallet", "/transaction/add", false, {
+    invalidateKey: INVALIDATE,
+    onSuccess: notifySuccess,
+  });
 
-  const {
-    mutateAsync: updateAsync,
-    isPending: isUpdating,
-    isError: isUpdateError,
-  } = useDataMutation<UpdateTransactionRequest, SimpleResponse>(
-    "wallet",
-    "/transaction/edit",
-    false,
-    {
-      invalidateKey: [["transactions"]],
-      onSuccess: (data) => {
-        toast.success(data.message);
-      },
-    },
-  );
+  const { submit: updateAsync, isPending: isUpdating } = useDataMutation<
+    UpdateTransactionRequest,
+    SimpleResponse
+  >("wallet", "/transaction/edit", false, {
+    invalidateKey: INVALIDATE,
+    onSuccess: notifySuccess,
+  });
 
-  const {
-    mutateAsync: deleteAsync,
-    isPending: isDeleting,
-    isError: isDeleteError,
-  } = useDataMutation<DeleteRequest, SimpleResponse>(
-    "wallet",
-    "/transaction/delete",
-    false,
-    {
-      invalidateKey: [["transactions"]],
-      onSuccess: (data) => {
-        toast.success(data.message);
-      },
-    },
-  );
-
-  const isCategoriesNotFoundError =
-    isCategoriesError &&
-    categoriesError &&
-    "status" in categoriesError &&
-    (categoriesError as FetchError).status === 404;
-  const hasCategoriesError = categoriesError && !isCategoriesNotFoundError;
+  const { mutate: deleteTransaction, isPending: isDeleting } = useDataMutation<
+    DeleteRequest,
+    SimpleResponse
+  >("wallet", "/transaction/delete", false, {
+    invalidateKey: INVALIDATE,
+    onSuccess: notifySuccess,
+  });
 
   if (isCategoriesLoading) {
     return <Loading content="categories" />;
   }
-  if (hasCategoriesError || (!categories && !isCategoriesNotFoundError)) {
-    return <Error content="categories" />;
+  const noCategories = isNotFoundError(categoriesError);
+  if ((categoriesError && !noCategories) || (!categories && !noCategories)) {
+    return (
+      <Error content="categories" onRetry={() => void refetchCategories()} />
+    );
   }
-
-  const isTransactionsNotFoundError =
-    isTransactionsError &&
-    transactionsError &&
-    "status" in transactionsError &&
-    (transactionsError as FetchError).status === 404;
-
-  const hasTransactionsError =
-    (isTransactionsError && !isTransactionsNotFoundError) ||
-    isCreateError ||
-    isUpdateError ||
-    isDeleteError;
 
   if (isTransactionsLoading) {
     return <Loading content="transactions" />;
   }
-  if (hasTransactionsError || (!transactions && !isTransactionsNotFoundError)) {
-    return <Error content="transactions" />;
+  const noTransactions = isNotFoundError(transactionsError);
+  if (
+    (transactionsError && !noTransactions) ||
+    (!transactions && !noTransactions)
+  ) {
+    return (
+      <Error
+        content="transactions"
+        onRetry={() => void refetchTransactions()}
+      />
+    );
   }
 
-  const transactionList = isTransactionsNotFoundError
-    ? []
-    : transactions?.transactions || [];
+  const categoryList = categories?.categories ?? EMPTY_CATEGORIES;
+  const transactionList = noTransactions
+    ? EMPTY_TRANSACTIONS
+    : (transactions?.transactions ?? EMPTY_TRANSACTIONS);
+
+  const pagination: TransactionsPagination = {
+    backendPage: filters.page,
+    pageIndex: localPageIndex,
+  };
+
+  const handlePaginationChange = (next: TransactionsPagination) => {
+    setLocalPageIndex(next.pageIndex);
+    if (next.backendPage !== filters.page) {
+      setFilters((current) => ({ ...current, page: next.backendPage }));
+    }
+  };
+
+  const handleFiltersChange = (next: GetTransactionsRequest) => {
+    setFilters({ ...next, limit: BACKEND_PAGE_SIZE, page: 1 });
+    setLocalPageIndex(0);
+  };
 
   return (
     <div className="flex w-full flex-col gap-6">
@@ -155,29 +155,30 @@ export default function Transactions() {
         <div className="flex shrink-0 items-center gap-3">
           <Export />
           <Form
-            categories={categories?.categories || []}
+            categories={categoryList}
             isCreating={isCreating}
-            mutateAsync={createAsync}
+            submit={createAsync}
           />
         </div>
       </div>
 
       <Filters
         filters={filters}
-        setFilters={setFilters}
-        categories={categories?.categories || []}
+        onApply={handleFiltersChange}
+        categories={categoryList}
       />
 
       <Table
         transactions={transactionList}
-        categories={categories?.categories || []}
-        backendPage={filters.page}
-        setBackendPage={(p) => setFilters({ ...filters, page: p })}
+        categories={categoryList}
+        backendPageSize={BACKEND_PAGE_SIZE}
+        pagination={pagination}
+        onPaginationChange={handlePaginationChange}
         isLoading={isTransactionsFetching}
         isUpdating={isUpdating}
         isDeleting={isDeleting}
         updateAsync={updateAsync}
-        deleteAsync={deleteAsync}
+        onDelete={deleteTransaction}
       />
     </div>
   );

@@ -1,3 +1,7 @@
+import { useId, useState } from "react";
+import { CalendarIcon } from "lucide-react";
+import { type DateRange } from "react-day-picker";
+
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -6,56 +10,51 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { presetToPicker, type RangePreset } from "@/lib/date-range";
 import { cn } from "@/lib/utils";
-import { CalendarIcon } from "lucide-react";
-import { DateTime } from "luxon";
-import { useState } from "react";
-import { type DateRange } from "react-day-picker";
 
 type DateRangePickerProps = {
   date: DateRange | undefined;
   setDate: (date: DateRange | undefined) => void;
   className?: string;
+  labelledBy?: string;
 };
+
+const PRESETS: { preset: RangePreset; label: string }[] = [
+  { preset: "this_week", label: "This Week" },
+  { preset: "last_week", label: "Last Week" },
+  { preset: "this_month", label: "This Month" },
+  { preset: "last_month", label: "Last Month" },
+];
+
+const shortFormat = new Intl.DateTimeFormat("en-IN", {
+  month: "short",
+  day: "2-digit",
+});
+const longFormat = new Intl.DateTimeFormat("en-IN", {
+  month: "short",
+  day: "2-digit",
+  year: "numeric",
+});
+
+function describeRange(date: DateRange | undefined): string {
+  if (!date?.from) return "Pick a date range";
+  if (!date.to) return longFormat.format(date.from);
+  return `${shortFormat.format(date.from)} – ${longFormat.format(date.to)}`;
+}
 
 export function DateRangePicker({
   date,
   setDate,
   className,
+  labelledBy,
 }: DateRangePickerProps) {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const isMobile = useIsMobile();
+  const valueId = useId();
 
-  const setPreset = (
-    preset: "this_week" | "last_week" | "this_month" | "last_month",
-  ) => {
-    const now = DateTime.now();
-    let from: DateTime;
-    let to: DateTime;
-
-    switch (preset) {
-      case "this_week":
-        from = now.startOf("week");
-        to = now.endOf("week");
-        break;
-      case "last_week":
-        from = now.minus({ weeks: 1 }).startOf("week");
-        to = now.minus({ weeks: 1 }).endOf("week");
-        break;
-      case "this_month":
-        from = now.startOf("month");
-        to = now.endOf("month");
-        break;
-      case "last_month":
-        from = now.minus({ months: 1 }).startOf("month");
-        to = now.minus({ months: 1 }).endOf("month");
-        break;
-    }
-
-    setDate({
-      from: from.toJSDate(),
-      to: to.toJSDate(),
-    });
+  const setPreset = (preset: RangePreset) => {
+    setDate(presetToPicker(preset));
     setIsCalendarOpen(false);
   };
 
@@ -65,25 +64,17 @@ export function DateRangePicker({
         render={
           <Button
             variant="outline"
+            aria-labelledby={
+              labelledBy ? `${labelledBy} ${valueId}` : undefined
+            }
             className={cn(
               "justify-start text-left font-normal",
               !date && "text-muted-foreground",
               className,
             )}
           >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {date?.from ? (
-              date.to ? (
-                <>
-                  {DateTime.fromJSDate(date.from).toFormat("LLL dd")} -{" "}
-                  {DateTime.fromJSDate(date.to).toFormat("LLL dd, yyyy")}
-                </>
-              ) : (
-                DateTime.fromJSDate(date.from).toFormat("LLL dd, yyyy")
-              )
-            ) : (
-              <span>Pick a date range</span>
-            )}
+            <CalendarIcon data-icon="inline-start" aria-hidden="true" />
+            <span id={valueId}>{describeRange(date)}</span>
           </Button>
         }
       />
@@ -92,38 +83,17 @@ export function DateRangePicker({
         align="start"
       >
         <div className="grid grid-cols-2 gap-2 border-b border-white/10 p-2 sm:flex sm:flex-row">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="justify-start text-xs text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:inset-ring hover:ring-amber-500"
-            onClick={() => setPreset("this_week")}
-          >
-            This Week
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="justify-start text-xs text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:inset-ring hover:ring-amber-500"
-            onClick={() => setPreset("last_week")}
-          >
-            Last Week
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="justify-start text-xs text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:inset-ring hover:ring-amber-500"
-            onClick={() => setPreset("this_month")}
-          >
-            This Month
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="justify-start text-xs text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:inset-ring hover:ring-amber-500"
-            onClick={() => setPreset("last_month")}
-          >
-            Last Month
-          </Button>
+          {PRESETS.map(({ preset, label }) => (
+            <Button
+              key={preset}
+              variant="ghost"
+              size="sm"
+              className="justify-start text-xs text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:inset-ring hover:ring-amber-500"
+              onClick={() => setPreset(preset)}
+            >
+              {label}
+            </Button>
+          ))}
         </div>
         <Calendar
           mode="range"

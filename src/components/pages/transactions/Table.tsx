@@ -17,11 +17,11 @@ import {
   CategoryType,
   type Category,
   type DeleteRequest,
-  type SimpleResponse,
   type Transaction,
   type UpdateTransactionRequest,
 } from "@/lib/objects";
-import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import {
   columnVisibilityFeature,
   createColumnHelper,
@@ -44,9 +44,17 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Form } from "./Form";
 import { Table as HistoryTable } from "./history/Table";
+import { grpcTimeMillis } from "@/lib/time";
+
+const CLIENT_PAGE_SIZE = 25;
+
+export type TransactionsPagination = {
+  backendPage: number;
+  pageIndex: number;
+};
 
 type TransactionsTableBaseProps = {
   transactions: Transaction[];
@@ -56,12 +64,13 @@ type TransactionsTableBaseProps = {
 type TransactionsTableFullProps = TransactionsTableBaseProps & {
   readonly?: false;
   categories: Category[];
-  backendPage: number;
-  setBackendPage: (page: number) => void;
+  backendPageSize: number;
+  pagination: TransactionsPagination;
+  onPaginationChange: (next: TransactionsPagination) => void;
   isUpdating: boolean;
   isDeleting: boolean;
-  updateAsync: (req: UpdateTransactionRequest) => Promise<SimpleResponse>;
-  deleteAsync: (req: DeleteRequest) => Promise<SimpleResponse>;
+  updateAsync: (req: UpdateTransactionRequest) => Promise<boolean>;
+  onDelete: (req: DeleteRequest) => void;
 };
 
 type TransactionsTableReadonlyProps = TransactionsTableBaseProps & {
@@ -74,10 +83,12 @@ type TransactionsTableProps =
 type TransactionsTableMeta = {
   isUpdating: boolean;
   isDeleting: boolean;
-  updateAsync: (req: UpdateTransactionRequest) => Promise<SimpleResponse>;
-  deleteAsync: (req: DeleteRequest) => Promise<SimpleResponse>;
+  updateAsync: (req: UpdateTransactionRequest) => Promise<boolean>;
+  onDelete: (req: DeleteRequest) => void;
   categories: Category[];
 };
+
+const getRowId = (row: Transaction) => String(row.id);
 
 const features = tableFeatures({
   tableMeta: metaHelper<TransactionsTableMeta>(),
@@ -126,7 +137,7 @@ const columns = helper.columns([
       </Tooltip>
     ),
   }),
-  helper.accessor((row) => row.created_at?.seconds, {
+  helper.accessor((row) => grpcTimeMillis(row.created_at), {
     id: "createdAt",
     header: ({ column, table }) => {
       return (
@@ -139,11 +150,11 @@ const columns = helper.columns([
           >
             <span>Created</span>
             {column.getIsSorted() === "asc" ? (
-              <ArrowUp className="ml-2 h-4 w-4" />
+              <ArrowUp className="ml-2 h-4 w-4" aria-hidden="true" />
             ) : column.getIsSorted() === "desc" ? (
-              <ArrowDown className="ml-2 h-4 w-4" />
+              <ArrowDown className="ml-2 h-4 w-4" aria-hidden="true" />
             ) : (
-              <ArrowUpDown className="ml-2 h-4 w-4" />
+              <ArrowUpDown className="ml-2 h-4 w-4" aria-hidden="true" />
             )}
           </Button>
           <Button
@@ -151,6 +162,7 @@ const columns = helper.columns([
             size="icon"
             className="text-muted-foreground hover:text-foreground h-7 w-7 transition-colors hover:bg-white/10"
             title="Switch to Updated"
+            aria-label="Show updated date instead"
             onClick={() =>
               table.setColumnVisibility((prev) => ({
                 ...prev,
@@ -159,7 +171,7 @@ const columns = helper.columns([
               }))
             }
           >
-            <ArrowRightLeft size={14} />
+            <ArrowRightLeft size={14} aria-hidden="true" />
           </Button>
         </div>
       );
@@ -174,7 +186,7 @@ const columns = helper.columns([
       );
     },
   }),
-  helper.accessor((row) => row.updated_at?.seconds, {
+  helper.accessor((row) => grpcTimeMillis(row.updated_at), {
     id: "updatedAt",
     header: ({ column, table }) => {
       return (
@@ -187,11 +199,11 @@ const columns = helper.columns([
           >
             <span>Updated</span>
             {column.getIsSorted() === "asc" ? (
-              <ArrowUp className="ml-2 h-4 w-4" />
+              <ArrowUp className="ml-2 h-4 w-4" aria-hidden="true" />
             ) : column.getIsSorted() === "desc" ? (
-              <ArrowDown className="ml-2 h-4 w-4" />
+              <ArrowDown className="ml-2 h-4 w-4" aria-hidden="true" />
             ) : (
-              <ArrowUpDown className="ml-2 h-4 w-4" />
+              <ArrowUpDown className="ml-2 h-4 w-4" aria-hidden="true" />
             )}
           </Button>
           <Button
@@ -199,6 +211,7 @@ const columns = helper.columns([
             size="icon"
             className="h-7 w-7 text-amber-500/70 transition-colors hover:bg-white/10 hover:text-amber-500"
             title="Switch to Created"
+            aria-label="Show created date instead"
             onClick={() =>
               table.setColumnVisibility((prev) => ({
                 ...prev,
@@ -207,7 +220,7 @@ const columns = helper.columns([
               }))
             }
           >
-            <ArrowRightLeft size={14} />
+            <ArrowRightLeft size={14} aria-hidden="true" />
           </Button>
         </div>
       );
@@ -216,10 +229,8 @@ const columns = helper.columns([
       const isUpdated =
         row.original.updated_at &&
         row.original.created_at &&
-        (row.original.updated_at.seconds > row.original.created_at.seconds ||
-          (row.original.updated_at.seconds ===
-            row.original.created_at.seconds &&
-            row.original.updated_at.nanos > row.original.created_at.nanos));
+        grpcTimeMillis(row.original.updated_at) >
+          grpcTimeMillis(row.original.created_at);
 
       return (
         <div className="text-muted-foreground pr-4 text-center text-sm">
@@ -245,8 +256,8 @@ const columns = helper.columns([
       const isUpdated =
         row.original.updated_at &&
         row.original.created_at &&
-        (row.original.updated_at.seconds !== row.original.created_at.seconds ||
-          row.original.updated_at.nanos !== row.original.created_at.nanos);
+        grpcTimeMillis(row.original.updated_at) !==
+          grpcTimeMillis(row.original.created_at);
       const isUpdatedAtVisible = table.getColumn("updatedAt")?.getIsVisible();
 
       return (
@@ -258,14 +269,14 @@ const columns = helper.columns([
             data={row.original}
             categories={meta.categories}
             isUpdating={meta.isUpdating}
-            mutateAsync={meta.updateAsync}
+            submit={meta.updateAsync}
           />
           <Delete
             id={row.original.id}
             description="This action cannot be undone. This will delete the transaction"
             name={row.original.description}
             isDeleting={meta.isDeleting}
-            mutateAsync={meta.deleteAsync}
+            onDelete={meta.onDelete}
           />
         </div>
       );
@@ -283,27 +294,27 @@ export function Table(props: TransactionsTableProps) {
       ...(isReadonly && { actions: false }),
     });
 
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: 25,
-  });
+  const [readonlyPageIndex, setReadonlyPageIndex] = useState(0);
 
-  const backendPage = "backendPage" in props ? props.backendPage : undefined;
-  const previousBackendPage = useRef(backendPage);
+  const pageCount = Math.max(
+    1,
+    Math.ceil(props.transactions.length / CLIENT_PAGE_SIZE),
+  );
+  const requestedPageIndex = isReadonly
+    ? readonlyPageIndex
+    : props.pagination.pageIndex;
+  const pageIndex = Math.min(requestedPageIndex, pageCount - 1);
 
-  useEffect(() => {
-    if (
-      backendPage !== undefined &&
-      previousBackendPage.current !== undefined
-    ) {
-      if (backendPage < previousBackendPage.current) {
-        setPagination((prev) => ({ ...prev, pageIndex: 1 }));
-      } else if (backendPage > previousBackendPage.current) {
-        setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-      }
+  const setPageIndex = (next: number, backendPage?: number) => {
+    if (isReadonly) {
+      setReadonlyPageIndex(next);
+      return;
     }
-    previousBackendPage.current = backendPage;
-  }, [backendPage]);
+    props.onPaginationChange({
+      backendPage: backendPage ?? props.pagination.backendPage,
+      pageIndex: next,
+    });
+  };
 
   const meta = isReadonly
     ? undefined
@@ -311,46 +322,56 @@ export function Table(props: TransactionsTableProps) {
         isUpdating: props.isUpdating,
         isDeleting: props.isDeleting,
         updateAsync: props.updateAsync,
-        deleteAsync: props.deleteAsync,
+        onDelete: props.onDelete,
         categories: props.categories,
       };
+
+  const paginationState = { pageIndex, pageSize: CLIENT_PAGE_SIZE };
 
   const table = useTable({
     features,
     data: props.transactions,
     columns,
     meta,
+    getRowId,
+    autoResetPageIndex: false,
     state: {
-      pagination,
+      pagination: paginationState,
       columnVisibility,
     },
-    onPaginationChange: setPagination,
+    onPaginationChange: (updater) => {
+      const next =
+        typeof updater === "function" ? updater(paginationState) : updater;
+      setPageIndex(next.pageIndex);
+    },
     onColumnVisibilityChange: setColumnVisibility,
     manualPagination: false,
   });
 
+  const backendPage = isReadonly ? 1 : props.pagination.backendPage;
+  const hasMoreOnServer =
+    !isReadonly && props.transactions.length === props.backendPageSize;
+  const lastLocalPageOfFullBackendPage =
+    (isReadonly ? 0 : Math.ceil(props.backendPageSize / CLIENT_PAGE_SIZE)) - 1;
+
+  const canNext = table.getCanNextPage() || hasMoreOnServer;
+  const canPrev = table.getCanPreviousPage() || backendPage > 1;
+
   const handleNextPage = () => {
     if (table.getCanNextPage()) {
       table.nextPage();
-    } else if (!isReadonly && props.transactions.length === 50) {
-      props.setBackendPage(props.backendPage + 1);
+    } else if (hasMoreOnServer) {
+      setPageIndex(0, backendPage + 1);
     }
   };
 
   const handlePrevPage = () => {
     if (table.getCanPreviousPage()) {
       table.previousPage();
-    } else if (!isReadonly && props.backendPage > 1) {
-      props.setBackendPage(props.backendPage - 1);
+    } else if (backendPage > 1) {
+      setPageIndex(lastLocalPageOfFullBackendPage, backendPage - 1);
     }
   };
-
-  const isLocalNextDisabled = !table.getCanNextPage();
-  const isBackendNextDisabled = isReadonly || props.transactions.length < 50;
-
-  const canNext = !isLocalNextDisabled || !isBackendNextDisabled;
-  const canPrev =
-    table.getCanPreviousPage() || (!isReadonly && props.backendPage > 1);
 
   return (
     <div className="flex flex-col gap-4">
@@ -434,7 +455,7 @@ export function Table(props: TransactionsTableProps) {
           disabled={!canPrev}
           className="flex items-center gap-1 border-white/10 bg-transparent transition-colors hover:bg-white/10"
         >
-          <ChevronLeft className="size-4" />
+          <ChevronLeft data-icon="inline-start" aria-hidden="true" />
           Previous
         </Button>
         <Button
@@ -445,7 +466,7 @@ export function Table(props: TransactionsTableProps) {
           className="flex items-center gap-1 border-white/10 bg-transparent transition-colors hover:bg-white/10"
         >
           Next
-          <ChevronRight className="size-4" />
+          <ChevronRight data-icon="inline-end" aria-hidden="true" />
         </Button>
       </div>
     </div>

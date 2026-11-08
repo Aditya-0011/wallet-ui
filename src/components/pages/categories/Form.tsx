@@ -36,7 +36,6 @@ import {
   getCategoryTypeLabel,
   type Category,
   type CreateCategoryRequest,
-  type SimpleResponse,
   type UpdateCategoryRequest,
 } from "@/lib/objects";
 import { useForm } from "@tanstack/react-form";
@@ -48,16 +47,16 @@ type FormProps =
       data: Category;
       isCreating?: undefined;
       isUpdating: boolean;
-      mutateAsync: (req: UpdateCategoryRequest) => Promise<SimpleResponse>;
+      submit: (req: UpdateCategoryRequest) => Promise<boolean>;
     }
   | {
       data?: undefined;
       isCreating: boolean;
       isUpdating?: undefined;
-      mutateAsync: (req: CreateCategoryRequest) => Promise<SimpleResponse>;
+      submit: (req: CreateCategoryRequest) => Promise<boolean>;
     };
 
-export function Form({ data, isCreating, isUpdating, mutateAsync }: FormProps) {
+export function Form({ data, isCreating, isUpdating, submit }: FormProps) {
   const formId = data ? `category-form-${data.id}` : "category-form-create";
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [open, setOpen] = useState(false);
@@ -89,21 +88,17 @@ export function Form({ data, isCreating, isUpdating, mutateAsync }: FormProps) {
         : CreateCategoryRequestSchema,
     },
     onSubmit: async ({ value }) => {
-      try {
-        if (data) {
-          await mutateAsync({ ...value, id: data.id } as UpdateCategoryRequest);
-        } else {
-          await mutateAsync(value as CreateCategoryRequest);
-        }
-        reset();
-        setOpen(false);
-      } catch {
-        //
-      }
+      const saved = data
+        ? await submit({ ...value, id: data.id } as UpdateCategoryRequest)
+        : await submit(value as CreateCategoryRequest);
+      if (!saved) return;
+      reset();
+      setOpen(false);
     },
   });
 
   useEffect(() => {
+    if (!showEmojiPicker) return;
     function handleClickOutside(event: MouseEvent) {
       if (
         emojiPickerRef.current &&
@@ -118,7 +113,7 @@ export function Form({ data, isCreating, isUpdating, mutateAsync }: FormProps) {
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, []);
+  }, [showEmojiPicker]);
 
   return (
     <Dialog
@@ -143,6 +138,7 @@ export function Form({ data, isCreating, isUpdating, mutateAsync }: FormProps) {
           render={
             data ? (
               <Button
+                aria-label={`Edit ${data.name}`}
                 variant="ghost"
                 size="icon-sm"
                 className="rounded-md text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:ring hover:ring-amber-500"
@@ -153,10 +149,10 @@ export function Form({ data, isCreating, isUpdating, mutateAsync }: FormProps) {
           }
         >
           {data ? (
-            <Edit2 className="size-4" />
+            <Edit2 aria-hidden="true" />
           ) : (
             <>
-              <Plus className="size-4" /> Add
+              <Plus aria-hidden="true" /> Add
             </>
           )}
         </DialogTrigger>

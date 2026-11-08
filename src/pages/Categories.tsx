@@ -1,4 +1,4 @@
-import { useDataMutation, useDataQuery } from "@/api/handler";
+import { isNotFoundError, useDataMutation, useDataQuery } from "@/api/handler";
 import { Error } from "@/components/Error";
 import { Loading } from "@/components/Loading";
 import { Form } from "@/components/pages/categories/Form";
@@ -6,88 +6,59 @@ import { Table } from "@/components/pages/categories/Table";
 import {
   type CreateCategoryRequest,
   type DeleteRequest,
-  type FetchError,
+  type Category,
   type GetCategoriesResponse,
   type SimpleResponse,
   type UpdateCategoryRequest,
 } from "@/lib/objects";
 import { toast } from "sonner";
 
+const EMPTY_CATEGORIES: Category[] = [];
+const INVALIDATE = [["categories"], ["transactions"]];
+const notifySuccess = (data: SimpleResponse) => toast.success(data.message);
+
 export default function Categories() {
-  const { data, isLoading, isError, error } = useDataQuery<
+  const { data, isLoading, error, refetch } = useDataQuery<
     null,
     GetCategoriesResponse
   >("wallet", ["categories"], "/category/list", false, {
     staleTime: 30 * 60 * 1000,
   });
 
-  const {
-    mutateAsync: createAsync,
-    isPending: isCreating,
-    isError: isCreateError,
-  } = useDataMutation<CreateCategoryRequest, SimpleResponse>(
-    "wallet",
-    "/category/add",
-    false,
-    {
-      invalidateKey: [["categories"], ["transactions"]],
-      onSuccess: (data) => {
-        toast.success(data.message);
-      },
-    },
-  );
+  const { submit: createAsync, isPending: isCreating } = useDataMutation<
+    CreateCategoryRequest,
+    SimpleResponse
+  >("wallet", "/category/add", false, {
+    invalidateKey: INVALIDATE,
+    onSuccess: notifySuccess,
+  });
 
-  const {
-    mutateAsync: updateAsync,
-    isPending: isUpdating,
-    isError: isUpdateError,
-  } = useDataMutation<UpdateCategoryRequest, SimpleResponse>(
-    "wallet",
-    "/category/edit",
-    false,
-    {
-      invalidateKey: [["categories"], ["transactions"]],
-      onSuccess: (data) => {
-        toast.success(data.message);
-      },
-    },
-  );
+  const { submit: updateAsync, isPending: isUpdating } = useDataMutation<
+    UpdateCategoryRequest,
+    SimpleResponse
+  >("wallet", "/category/edit", false, {
+    invalidateKey: INVALIDATE,
+    onSuccess: notifySuccess,
+  });
 
-  const {
-    mutateAsync: deleteAsync,
-    isPending: isDeleting,
-    isError: isDeleteError,
-  } = useDataMutation<DeleteRequest, SimpleResponse>(
-    "wallet",
-    "/category/delete",
-    false,
-    {
-      invalidateKey: [["categories"], ["transactions"]],
-      onSuccess: (data) => {
-        toast.success(data.message);
-      },
-    },
-  );
-
-  const isNotFoundError =
-    isError &&
-    error &&
-    "status" in error &&
-    (error as FetchError).status === 404;
-  const hasError =
-    (isError && !isNotFoundError) ||
-    isCreateError ||
-    isUpdateError ||
-    isDeleteError;
+  const { mutate: deleteCategory, isPending: isDeleting } = useDataMutation<
+    DeleteRequest,
+    SimpleResponse
+  >("wallet", "/category/delete", false, {
+    invalidateKey: INVALIDATE,
+    onSuccess: notifySuccess,
+  });
 
   if (isLoading) {
     return <Loading content="categories" />;
   }
-  if (hasError || (!data && !isNotFoundError)) {
-    return <Error content="categories" />;
+
+  const isEmpty = isNotFoundError(error);
+  if ((error && !isEmpty) || (!data && !isEmpty)) {
+    return <Error content="categories" onRetry={() => void refetch()} />;
   }
 
-  const categoryList = isNotFoundError ? [] : data?.categories || [];
+  const categoryList = data?.categories ?? EMPTY_CATEGORIES;
 
   return (
     <div className="flex w-full flex-col gap-6">
@@ -99,7 +70,7 @@ export default function Categories() {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          <Form isCreating={isCreating} mutateAsync={createAsync} />
+          <Form isCreating={isCreating} submit={createAsync} />
         </div>
       </div>
 
@@ -108,7 +79,7 @@ export default function Categories() {
         isUpdating={isUpdating}
         isDeleting={isDeleting}
         updateAsync={updateAsync}
-        deleteAsync={deleteAsync}
+        onDelete={deleteCategory}
       />
     </div>
   );

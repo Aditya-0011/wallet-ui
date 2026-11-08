@@ -1,27 +1,46 @@
-import { type RankingInfo } from "@tanstack/match-sorter-utils";
-import { type FilterFn, type TableFeatures } from "@tanstack/react-table";
 import BigNumber from "bignumber.js";
 import { z } from "zod";
+import { GrpcTimeSchema, grpcTimeMillis, type GrpcTimestamp } from "@/lib/time";
 
-export const RequestMethodSchema = z.enum(["GET", "POST", "QUERY"]);
-export type RequestMethod = z.infer<typeof RequestMethodSchema>;
+export const AMOUNT_PATTERN = /^\d{1,13}(\.\d{1,2})?$/;
 
-export const ServiceListSchema = z.enum(["auth", "wallet"]);
-export type ServiceList = z.infer<typeof ServiceListSchema>;
+export const CATEGORY_ICON_PATTERN =
+  /^(?:[\u{1F300}-\u{1FAD6}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}]|\u{200D}|\u{FE0F})+$/u;
 
-export const ServiceApiMappingSchema = z.record(ServiceListSchema, z.string());
-export type ServiceApiMapping = z.infer<typeof ServiceApiMappingSchema>;
+export function isValidCategoryIcon(icon: string): boolean {
+  return CATEGORY_ICON_PATTERN.test(icon.trim());
+}
 
 export const GrpcDecimalSchema = z.object({
   value: z.string(),
 });
 export type GrpcDecimal = z.infer<typeof GrpcDecimalSchema>;
 
-export const GrpcTimeSchema = z.object({
-  seconds: z.number(),
-  nanos: z.number(),
+export { GrpcTimeSchema };
+export type GrpcTime = GrpcTimestamp;
+
+export const AmountSchema = GrpcDecimalSchema.superRefine((x, ctx) => {
+  const value = x.value.trim();
+  const fail = (message: string) =>
+    ctx.addIssue({ code: "custom", message, path: ["value"] });
+
+  if (value === "") {
+    fail("Amount is required");
+    return;
+  }
+  const amount = new BigNumber(value);
+  if (!AMOUNT_PATTERN.test(value) || !amount.isFinite()) {
+    fail("Use digits only, with up to 13 before and 2 after the decimal point");
+    return;
+  }
+  if ((amount.decimalPlaces() ?? 0) > 2) {
+    fail("Amount can have at most 2 decimal places");
+    return;
+  }
+  if (!amount.gt(0)) {
+    fail("Amount must be greater than zero");
+  }
 });
-export type GrpcTime = z.infer<typeof GrpcTimeSchema>;
 
 export const SimpleResponseSchema = z.object({
   message: z.string().trim(),
@@ -101,7 +120,9 @@ export const CreateCategoryRequestSchema = z.object({
     .trim()
     .min(1, { error: "Name is required" })
     .max(255, { error: "Name can be at most 255 characters long" }),
-  icon: z.emoji({ error: "Invalid emoji" }).trim(),
+  icon: z.string().trim().regex(CATEGORY_ICON_PATTERN, {
+    error: "Pick an emoji the server supports",
+  }),
   type: CategoryTypeSchema,
 });
 export type CreateCategoryRequest = z.infer<typeof CreateCategoryRequestSchema>;
@@ -113,7 +134,9 @@ export const UpdateCategoryRequestSchema = z.object({
     .trim()
     .min(1, { error: "Name is required" })
     .max(255, { error: "Name can be at most 255 characters long" }),
-  icon: z.emoji({ error: "Invalid emoji" }).trim(),
+  icon: z.string().trim().regex(CATEGORY_ICON_PATTERN, {
+    error: "Pick an emoji the server supports",
+  }),
 
   type: CategoryTypeSchema,
 });
@@ -176,9 +199,7 @@ export const GetTransactionsRequestSchema = z
   .refine(
     (x) => {
       if (!x.start_date || !x.end_date) return true;
-      const start = x.start_date.seconds + x.start_date.nanos / 1e9;
-      const end = x.end_date.seconds + x.end_date.nanos / 1e9;
-      return end >= start;
+      return grpcTimeMillis(x.end_date) >= grpcTimeMillis(x.start_date);
     },
     {
       error: "end date must be after or equal to start date",
@@ -198,15 +219,7 @@ export const CreateTransactionRequestSchema = z.object({
     .trim()
     .min(1, { error: "Description is required" })
     .max(255, { error: "Description can be at most 255 characters long" }),
-  amount: GrpcDecimalSchema.superRefine((x, ctx) => {
-    if (new BigNumber(x.value).lte(0)) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Amount must be greater than zero",
-        path: ["value"],
-      });
-    }
-  }),
+  amount: AmountSchema,
 });
 export type CreateTransactionRequest = z.infer<
   typeof CreateTransactionRequestSchema
@@ -220,9 +233,7 @@ export const ExportTransactionsRequestSchema = z
   .refine(
     (x) => {
       if (!x.start_date || !x.end_date) return true;
-      const start = x.start_date.seconds + x.start_date.nanos / 1e9;
-      const end = x.end_date.seconds + x.end_date.nanos / 1e9;
-      return end >= start;
+      return grpcTimeMillis(x.end_date) >= grpcTimeMillis(x.start_date);
     },
     {
       error: "end date must be after or equal to start date",
@@ -254,39 +265,10 @@ export const UpdateTransactionRequestSchema = z.object({
     .trim()
     .min(1, { error: "Description is required" })
     .max(255, { error: "Description can be at most 255 characters long" }),
-  amount: GrpcDecimalSchema.superRefine((x, ctx) => {
-    if (new BigNumber(x.value).lte(0)) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Amount must be greater than zero",
-        path: ["value"],
-      });
-    }
-  }),
+  amount: AmountSchema,
 });
 export type UpdateTransactionRequest = z.infer<
   typeof UpdateTransactionRequestSchema
 >;
 
-export class FetchError extends Error {
-  status: number;
-  constructor(message: string, status: number) {
-    super(message);
-    this.status = status;
-  }
-}
-
-declare module "luxon" {
-  interface DateTime {
-    toGrpcTime(): GrpcTime;
-  }
-}
-
-declare module "@tanstack/react-table" {
-  interface FilterFns {
-    fuzzy: FilterFn<TableFeatures, Record<string, unknown>>;
-  }
-  interface FilterMeta {
-    itemRank: RankingInfo;
-  }
-}
+export { FetchError } from "@/lib/errors";

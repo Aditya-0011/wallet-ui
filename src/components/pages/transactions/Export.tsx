@@ -1,4 +1,9 @@
-import { useDataQuery } from "@/api/handler";
+import { useState } from "react";
+import { Download } from "lucide-react";
+import { type DateRange } from "react-day-picker";
+import { toast } from "sonner";
+
+import { apiFetch, type BlobResponse } from "@/api/handler";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,68 +16,48 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import {
-  type ExportTransactionsRequest,
-  type ExportTransactionsResponse,
-} from "@/lib/objects";
-import { Download } from "lucide-react";
-import { DateTime } from "luxon";
-import { useState } from "react";
-import { type DateRange } from "react-day-picker";
-import { toast } from "sonner";
+import { dayRangeToGrpc, presetToPicker } from "@/lib/date-range";
+import { type ExportTransactionsRequest } from "@/lib/objects";
+import { useMutation } from "@tanstack/react-query";
 import { DateRangePicker } from "./ui/DateRangePicker";
+
+function saveBlob({ file_data, file_name }: BlobResponse) {
+  const url = URL.createObjectURL(file_data);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = file_name;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 export function Export() {
   const [open, setOpen] = useState(false);
-  const [date, setDate] = useState<DateRange | undefined>({
-    from: DateTime.now().startOf("month").toJSDate(),
-    to: DateTime.now().endOf("month").toJSDate(),
+  const [date, setDate] = useState<DateRange | undefined>(() =>
+    presetToPicker("this_month"),
+  );
+
+  const { mutate: exportTransactions, isPending: isExporting } = useMutation({
+    mutationFn: (request: ExportTransactionsRequest) =>
+      apiFetch<BlobResponse>("wallet", "/transaction/export", {
+        method: "QUERY",
+        body: request,
+        kind: "blob",
+      }),
+    onSuccess: (file) => {
+      saveBlob(file);
+      toast.success("Export successful");
+      setOpen(false);
+    },
   });
 
-  const { refetch: exportTransactionsQuery, isFetching: isExporting } =
-    useDataQuery<ExportTransactionsRequest, ExportTransactionsResponse>(
-      "wallet",
-      ["transactions", "export"],
-      "/transaction/export",
-      false,
-      {
-        isQuery: true,
-        enabled: false,
-        variables: {
-          start_date: date?.from
-            ? DateTime.fromJSDate(date.from).toGrpcTime()
-            : DateTime.now().startOf("month").toGrpcTime(),
-          end_date: date?.to
-            ? DateTime.fromJSDate(date.to).toGrpcTime()
-            : DateTime.now().endOf("month").toGrpcTime(),
-        },
-        keepPreviousData: false,
-        isBlob: true,
-      },
-    );
-
-  const handleExport = async () => {
-    if (!date?.from || !date?.to) {
+  const handleExport = () => {
+    if (!date?.from || !date.to) {
       toast.error("Please select a valid date range");
       return;
     }
-
-    const res = await exportTransactionsQuery();
-    if (res.data) {
-      const { file_data, file_name } = res.data;
-      const url = URL.createObjectURL(file_data);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = file_name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      toast.success("Export successful");
-      setOpen(false);
-    } else if (res.isError) {
-      toast.error("Failed to export transactions");
-    }
+    exportTransactions(dayRangeToGrpc(date.from, date.to));
   };
 
   return (
@@ -86,7 +71,7 @@ export function Export() {
           />
         }
       >
-        <Download className="size-4" />
+        <Download data-icon="inline-start" aria-hidden="true" />
         Export
       </DialogTrigger>
       <DialogContent
@@ -103,10 +88,11 @@ export function Export() {
         </DialogHeader>
         <FieldGroup className="mt-1">
           <Field>
-            <FieldLabel>Date Range</FieldLabel>
+            <FieldLabel id="export-range-label">Date Range</FieldLabel>
             <DateRangePicker
               date={date}
               setDate={setDate}
+              labelledBy="export-range-label"
               className="border-input h-9 w-full rounded-md border bg-neutral-950 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:border-amber-500 focus-visible:ring-1 focus-visible:ring-amber-500 focus-visible:outline-none"
             />
           </Field>
@@ -115,12 +101,7 @@ export function Export() {
           <Field orientation="horizontal" className="justify-end">
             <DialogClose
               render={
-                <Button
-                  variant="outline"
-                  size="default"
-                  onClick={() => setOpen(false)}
-                  className="rounded-md"
-                >
+                <Button variant="outline" size="default" className="rounded-md">
                   Cancel
                 </Button>
               }

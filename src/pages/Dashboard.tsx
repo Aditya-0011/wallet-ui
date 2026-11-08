@@ -1,24 +1,28 @@
-import { useDataQuery } from "@/api/handler";
+import { isNotFoundError, useDataQuery } from "@/api/handler";
 import { Error } from "@/components/Error";
 import { Loading } from "@/components/Loading";
 import { Summary } from "@/components/pages/dashboard/Summary";
 import { Table } from "@/components/pages/transactions/Table";
+import { presetToGrpc } from "@/lib/date-range";
 import {
   CategoryType,
-  type FetchError,
   type GetTransactionsRequest,
   type GetTransactionsResponse,
+  type Transaction,
   type UserSummaryResponse,
 } from "@/lib/objects";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency } from "@/lib/format";
 import BigNumber from "bignumber.js";
-import { DateTime } from "luxon";
+
+const TODAY_LIMIT = 200;
+const EMPTY_TRANSACTIONS: Transaction[] = [];
 
 export default function Dashboard() {
   const {
     data: summary,
     isLoading: isSummaryLoading,
     isError: isSummaryError,
+    refetch: refetchSummary,
   } = useDataQuery<null, UserSummaryResponse>(
     "wallet",
     ["summary", "transaction"],
@@ -31,6 +35,7 @@ export default function Dashboard() {
     isLoading: isTransactionsLoading,
     isError: isTransactionsError,
     error: transactionsError,
+    refetch: refetchTransactions,
   } = useDataQuery<GetTransactionsRequest, GetTransactionsResponse>(
     "wallet",
     ["transactions", "today"],
@@ -39,26 +44,21 @@ export default function Dashboard() {
     {
       isQuery: true,
       variables: {
-        limit: 50,
+        limit: TODAY_LIMIT,
         page: 1,
-        start_date: DateTime.now().startOf("day").toGrpcTime(),
-        end_date: DateTime.now().endOf("day").toGrpcTime(),
+        ...presetToGrpc("today"),
       },
     },
   );
 
-  const isTransactionsNotFoundError =
-    isTransactionsError &&
-    transactionsError &&
-    "status" in transactionsError &&
-    (transactionsError as FetchError).status === 404;
+  const isTransactionsNotFoundError = isNotFoundError(transactionsError);
 
   const hasTransactionsError =
     isTransactionsError && !isTransactionsNotFoundError;
 
   const transactionList = isTransactionsNotFoundError
-    ? []
-    : transactions?.transactions || [];
+    ? EMPTY_TRANSACTIONS
+    : (transactions?.transactions ?? EMPTY_TRANSACTIONS);
 
   const todayTotal = transactionList.reduce((acc, curr) => {
     const val = new BigNumber(curr.amount.value);
@@ -67,13 +67,11 @@ export default function Dashboard() {
       : acc.plus(val);
   }, new BigNumber(0));
 
-  const totalAmount = todayTotal.toNumber();
-  const todayDescription =
-    totalAmount > 0
-      ? `You're up ${formatCurrency(todayTotal)} today. Don't let it get to your head.`
-      : totalAmount < 0
-        ? `Down ${formatCurrency(todayTotal.abs())} today. Try holding onto your wallet for a change.`
-        : "No movement today. Boring, but safe.";
+  const todayDescription = todayTotal.isGreaterThan(0)
+    ? `You're up ${formatCurrency(todayTotal)} today. Don't let it get to your head.`
+    : todayTotal.isLessThan(0)
+      ? `Down ${formatCurrency(todayTotal.abs())} today. Try holding onto your wallet for a change.`
+      : "No movement today. Boring, but safe.";
 
   return (
     <div className="mx-auto flex max-h-screen w-full flex-col gap-6 text-white">
@@ -86,7 +84,7 @@ export default function Dashboard() {
       {isSummaryLoading ? (
         <Loading content="user summary" />
       ) : isSummaryError || !summary ? (
-        <Error content="user summary" />
+        <Error content="user summary" onRetry={() => void refetchSummary()} />
       ) : (
         <Summary data={summary} />
       )}
@@ -103,7 +101,10 @@ export default function Dashboard() {
         {isTransactionsLoading ? (
           <Loading content="transactions" />
         ) : hasTransactionsError ? (
-          <Error content="transactions" />
+          <Error
+            content="transactions"
+            onRetry={() => void refetchTransactions()}
+          />
         ) : (
           <Table
             readonly
