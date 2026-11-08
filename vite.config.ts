@@ -3,7 +3,6 @@ import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import path from "node:path";
 import { defineConfig } from "vite";
-import { redact } from "@tanstack/redact/vite";
 
 // https://vite.dev/config/
 export default defineConfig(({ command }) => {
@@ -13,10 +12,6 @@ export default defineConfig(({ command }) => {
       tailwindcss(),
       react(),
       babel({ presets: [reactCompilerPreset()] }),
-      redact({
-        preset: "full",
-        features: { viewTransitions: false },
-      }),
     ],
     resolve: {
       alias: {
