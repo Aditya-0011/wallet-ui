@@ -14,6 +14,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 
 type NavigationOption = {
@@ -30,6 +31,7 @@ const items: NavigationOption[] = [
 
 export function Navigation() {
   const { pathname } = useLocation();
+  const { setOpenMobile } = useSidebar();
   const { logout, isPending } = useLogout();
 
   return (
@@ -52,6 +54,7 @@ export function Navigation() {
                     className="gap-4 text-base hover:bg-neutral-800"
                     render={
                       <Link
+                        onClick={() => setOpenMobile(false)}
                         to={item.url}
                         aria-current={
                           pathname === item.url ? "page" : undefined
