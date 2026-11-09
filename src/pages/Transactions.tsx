@@ -145,7 +145,7 @@ export default function Transactions() {
 
   return (
     <div className="flex w-full flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold sm:text-3xl">Transactions</h1>
           <p className="text-muted-foreground mt-1 text-xs">

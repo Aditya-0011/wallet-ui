@@ -249,6 +249,11 @@ type CategoriesTableMeta = {
 
 const getRowId = (row: Category) => String(row.id);
 
+const phoneHidden = (columnId: string) =>
+  columnId === "createdAt" || columnId === "updatedAt"
+    ? "hidden md:table-cell"
+    : undefined;
+
 const features = tableFeatures({
   tableMeta: metaHelper<CategoriesTableMeta>(),
   columnVisibilityFeature,
@@ -265,15 +270,19 @@ const helper = createColumnHelper<typeof features, Category>();
 
 const columns = helper.columns([
   helper.accessor("icon", {
-    header: () => <span className="pl-2">Icon</span>,
+    header: () => <span className="md:pl-2">Icon</span>,
     cell: ({ row }) => (
-      <div className="pl-2 text-xl">{row.getValue("icon")}</div>
+      <div className="text-xl md:pl-2">{row.getValue("icon")}</div>
     ),
   }),
   helper.accessor("name", {
     header: ({ column }) => <NameHeader column={column} />,
     cell: ({ row }) => {
-      return <span className="font-medium">{row.getValue("name")}</span>;
+      return (
+        <span className="font-medium wrap-anywhere whitespace-normal">
+          {row.getValue("name")}
+        </span>
+      );
     },
     filterFn: fuzzyFilter,
     sortFn: fuzzySort,
@@ -395,11 +404,11 @@ const columns = helper.columns([
   }),
   helper.display({
     id: "actions",
-    header: () => <div className="pr-2 text-right">Actions</div>,
+    header: () => <div className="text-right md:pr-2">Actions</div>,
     cell: ({ row, table }) => {
       const meta = table.options.meta!;
       return (
-        <div className="flex justify-end gap-1 pr-2">
+        <div className="flex justify-end gap-1 md:pr-2">
           <Form
             data={row.original}
             isUpdating={meta.isUpdating}
@@ -491,7 +500,7 @@ export function Table({
             <col className="w-[10%]" />
             <col className="w-[30%]" />
             <col className="w-[20%]" />
-            <col className="w-[20%]" />
+            <col className="hidden w-[20%] md:table-column" />
             <col className="w-[20%]" />
           </colgroup>
           <TableHeader>
@@ -501,7 +510,13 @@ export function Table({
                 className="border-white/10 hover:bg-transparent"
               >
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className="h-12 font-medium">
+                  <TableHead
+                    key={header.id}
+                    className={cn(
+                      "h-12 font-medium",
+                      phoneHidden(header.column.id),
+                    )}
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -522,7 +537,10 @@ export function Table({
                   className="border-white/5 transition-colors hover:bg-white/5"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="py-3">
+                    <TableCell
+                      key={cell.id}
+                      className={cn("py-3", phoneHidden(cell.column.id))}
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext(),

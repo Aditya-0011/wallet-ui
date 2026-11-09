@@ -60,7 +60,7 @@ export function RootLayout() {
     <TooltipProvider>
       <SidebarProvider className="bg-neutral-950" defaultOpen={false}>
         <Navigation />
-        <SidebarInset>
+        <SidebarInset className="min-w-0">
           <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center bg-neutral-950/50 px-4 backdrop-blur-sm">
             <SidebarTrigger
               aria-label="Toggle navigation"

@@ -46,7 +46,7 @@ const columns = helper.columns([
   helper.accessor("created_at", {
     header: () => <div className="pl-4 text-left">Date</div>,
     cell: ({ row }) => (
-      <div className="pl-4 font-medium">
+      <div className="font-medium whitespace-normal sm:pl-4">
         {formatDate(row.original.created_at, { seconds: true })}
       </div>
     ),
@@ -57,9 +57,9 @@ const columns = helper.columns([
     cell: ({ row }) => {
       const h = row.original;
       return (
-        <div className="flex flex-col gap-2 text-sm">
+        <div className="flex flex-col gap-2 text-sm whitespace-normal">
           {h.previous_category.id !== h.current_category.id && (
-            <div className="flex items-center gap-x-2 gap-y-1 whitespace-nowrap">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="text-muted-foreground w-24 shrink-0">
                 Category:
               </span>
@@ -74,7 +74,7 @@ const columns = helper.columns([
             </div>
           )}
           {h.previous_amount.value !== h.current_amount.value && (
-            <div className="flex items-center gap-x-2 gap-y-1 whitespace-nowrap">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="text-muted-foreground w-24 shrink-0">
                 Amount:
               </span>
@@ -87,14 +87,14 @@ const columns = helper.columns([
             </div>
           )}
           {h.previous_description !== h.current_description && (
-            <div className="flex items-center gap-x-2 gap-y-1 whitespace-nowrap">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="text-muted-foreground w-24 shrink-0">
                 Description:
               </span>
-              <span className="shrink-0 line-through decoration-rose-500/50">
+              <span className="min-w-0 wrap-anywhere line-through decoration-rose-500/50">
                 {h.previous_description}
               </span>
-              <span className="shrink-0 text-amber-500">
+              <span className="min-w-0 wrap-anywhere text-amber-500">
                 {h.current_description}
               </span>
             </div>
@@ -191,7 +191,7 @@ export function Table({ transaction }: HistoryTableProps) {
           </div>
         ) : (
           <div className="overflow-hidden overflow-x-auto rounded-xl border border-white/10 bg-neutral-950/20 shadow-sm backdrop-blur">
-            <TableTag className="min-w-150">
+            <TableTag className="sm:min-w-150">
               <colgroup>
                 <col className="w-[40%]" />
                 <col className="w-[60%]" />

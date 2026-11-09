@@ -83,9 +83,9 @@ export function Filters({ filters, onApply, categories }: FiltersProps) {
     "border-input h-9 w-full rounded-md border bg-neutral-950 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:border-amber-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500";
 
   return (
-    <div className="mb-4 flex w-full flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-      <div className="grid w-full grid-cols-2 gap-3 lg:flex lg:w-auto lg:flex-1 lg:flex-nowrap lg:items-end">
-        <div className="col-span-1 flex flex-col lg:w-35">
+    <div className="mb-4 flex w-full flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+      <div className="grid w-full grid-cols-2 gap-3 xl:flex xl:w-auto xl:flex-1 xl:flex-nowrap xl:items-end">
+        <div className="col-span-1 flex flex-col xl:w-35">
           <span
             id={typeId}
             className="text-muted-foreground mb-1.5 pl-1 text-xs font-medium"
@@ -130,7 +130,7 @@ export function Filters({ filters, onApply, categories }: FiltersProps) {
           </Select>
         </div>
 
-        <div className="col-span-1 flex flex-col lg:w-45">
+        <div className="col-span-1 flex flex-col xl:w-45">
           <span
             id={categoryId}
             className="text-muted-foreground mb-1.5 pl-1 text-xs font-medium"
@@ -177,7 +177,7 @@ export function Filters({ filters, onApply, categories }: FiltersProps) {
           </Select>
         </div>
 
-        <div className="col-span-2 flex flex-col lg:col-span-1 lg:w-65">
+        <div className="col-span-2 flex flex-col xl:col-span-1 xl:w-65">
           <span
             id={dateId}
             className="text-muted-foreground mb-1.5 pl-1 text-xs font-medium"
@@ -192,12 +192,12 @@ export function Filters({ filters, onApply, categories }: FiltersProps) {
           />
         </div>
       </div>
-      <div className="mt-1 grid grid-cols-2 items-center gap-2 lg:mt-0 lg:flex lg:w-auto">
+      <div className="mt-1 grid grid-cols-2 items-center gap-2 xl:mt-0 xl:flex xl:w-auto">
         <Button
           variant="outline"
           size="sm"
           onClick={handleReset}
-          className="flex h-9 w-full items-center gap-2 rounded-md lg:w-auto"
+          className="flex h-9 w-full items-center gap-2 rounded-md xl:w-auto"
         >
           <RefreshCcw data-icon="inline-start" aria-hidden="true" />
           Reset
@@ -205,7 +205,7 @@ export function Filters({ filters, onApply, categories }: FiltersProps) {
         <Button
           size="sm"
           onClick={handleApply}
-          className="flex h-9 w-full items-center gap-2 rounded-md bg-neutral-950 text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:inset-ring hover:ring-amber-500 lg:w-auto"
+          className="flex h-9 w-full items-center gap-2 rounded-md bg-neutral-950 text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:inset-ring hover:ring-amber-500 xl:w-auto"
         >
           <ListFilter data-icon="inline-start" aria-hidden="true" />
           Filter

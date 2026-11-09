@@ -90,6 +90,13 @@ type TransactionsTableMeta = {
 
 const getRowId = (row: Transaction) => String(row.id);
 
+const phoneHidden = (columnId: string) =>
+  columnId === "category" ||
+  columnId === "createdAt" ||
+  columnId === "updatedAt"
+    ? "hidden md:table-cell"
+    : undefined;
+
 const features = tableFeatures({
   tableMeta: metaHelper<TransactionsTableMeta>(),
   columnVisibilityFeature,
@@ -104,15 +111,22 @@ const helper = createColumnHelper<typeof features, Transaction>();
 
 const columns = helper.columns([
   helper.accessor("description", {
-    header: () => <div className="pl-4">Description</div>,
+    header: () => <div className="pl-2 md:pl-4">Description</div>,
     cell: ({ row }) => (
-      <div className="pl-4 font-medium">{row.original.description}</div>
+      <div className="pl-2 font-medium wrap-anywhere whitespace-normal md:pl-4">
+        {row.original.description}
+        <div className="text-muted-foreground mt-0.5 text-xs font-normal md:hidden">
+          {row.original.category.icon} {row.original.category.name}
+          <br />
+          {formatDate(row.original.created_at, { weekDay: true })}
+        </div>
+      </div>
     ),
   }),
   helper.accessor("amount", {
-    header: () => <div className="pl-4">Amount</div>,
+    header: () => <div className="md:pl-4">Amount</div>,
     cell: ({ row }) => (
-      <div className="pl-4 font-medium">
+      <div className="font-medium md:pl-4">
         {formatCurrency(row.original.amount.value)}
       </div>
     ),
@@ -261,9 +275,11 @@ const columns = helper.columns([
       const isUpdatedAtVisible = table.getColumn("updatedAt")?.getIsVisible();
 
       return (
-        <div className="flex items-center justify-end gap-2 pr-4">
-          {isUpdated && isUpdatedAtVisible && (
-            <HistoryTable transaction={row.original} />
+        <div className="flex items-center justify-end gap-1 pr-1 md:gap-2 md:pr-4">
+          {isUpdated && (
+            <div className={cn(!isUpdatedAtVisible && "md:hidden")}>
+              <HistoryTable transaction={row.original} />
+            </div>
           )}
           <Form
             data={row.original}
@@ -380,8 +396,18 @@ export function Table(props: TransactionsTableProps) {
           <colgroup>
             <col className={isReadonly ? "w-[30%]" : "w-[30%]"} />
             <col className={isReadonly ? "w-[20%]" : "w-[15%]"} />
-            <col className={isReadonly ? "w-[25%]" : "w-[20%]"} />
-            <col className={isReadonly ? "w-[25%]" : "w-[20%]"} />
+            <col
+              className={cn(
+                "hidden md:table-column",
+                isReadonly ? "w-[25%]" : "w-[20%]",
+              )}
+            />
+            <col
+              className={cn(
+                "hidden md:table-column",
+                isReadonly ? "w-[25%]" : "w-[20%]",
+              )}
+            />
             {!isReadonly && <col className="w-[15%]" />}
           </colgroup>
           <TableHeader>
@@ -391,7 +417,13 @@ export function Table(props: TransactionsTableProps) {
                 className="border-white/10 hover:bg-transparent"
               >
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className="h-12 font-medium">
+                  <TableHead
+                    key={header.id}
+                    className={cn(
+                      "h-12 font-medium",
+                      phoneHidden(header.column.id),
+                    )}
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -424,7 +456,10 @@ export function Table(props: TransactionsTableProps) {
                     )}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="py-3">
+                      <TableCell
+                        key={cell.id}
+                        className={cn("py-3", phoneHidden(cell.column.id))}
+                      >
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),
