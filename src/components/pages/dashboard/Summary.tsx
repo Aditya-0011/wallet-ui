@@ -1,16 +1,18 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type UserSummaryResponse } from "@/lib/objects";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
+import { formatTimestamp } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import BigNumber from "bignumber.js";
 import { TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { DateTime } from "luxon";
 import { useState } from "react";
 
 export function Summary({ data }: { data: UserSummaryResponse }) {
   const [tab, setTab] = useState<"all" | "month" | "week">("week");
 
-  const startDate = formatDate(data.start_date);
+  const startDate = formatTimestamp(data.start_date, DateTime.DATE_MED);
 
   const getValues = () => {
     switch (tab) {
@@ -110,25 +112,25 @@ export function Summary({ data }: { data: UserSummaryResponse }) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Card className="group border-emerald-900/60 bg-emerald-950/10 shadow-sm ring ring-emerald-500/10 backdrop-blur transition-all hover:scale-[1.02] hover:ring-emerald-500/30">
+        <Card className="group border-emerald-900/60 bg-emerald-950/10 shadow-sm ring ring-emerald-500/10 transition-shadow hover:ring-emerald-500/30">
           <CardContent className="flex flex-col gap-5 p-5">
             <div className="flex items-center justify-between text-emerald-500">
               <span className="text-sm font-medium">Income</span>
               <TrendingUp size={18} strokeWidth={2.5} />
             </div>
-            <div className="text-foreground text-2xl font-semibold tracking-tight">
+            <div className="text-foreground text-2xl font-semibold tracking-tight tabular-nums">
               {formatCurrency(income)}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="group border-rose-900/60 bg-rose-950/10 shadow-sm ring ring-rose-500/10 backdrop-blur transition-all hover:scale-[1.02] hover:ring-rose-500/30">
+        <Card className="group border-rose-900/60 bg-rose-950/10 shadow-sm ring ring-rose-500/10 transition-shadow hover:ring-rose-500/30">
           <CardContent className="flex flex-col gap-5 p-5">
             <div className="flex items-center justify-between text-rose-500">
               <span className="text-sm font-medium">Expense</span>
               <TrendingDown size={18} strokeWidth={2.5} />
             </div>
-            <div className="text-foreground text-2xl font-semibold tracking-tight">
+            <div className="text-foreground text-2xl font-semibold tracking-tight tabular-nums">
               {formatCurrency(expense)}
             </div>
           </CardContent>
@@ -136,7 +138,7 @@ export function Summary({ data }: { data: UserSummaryResponse }) {
 
         <Card
           className={cn(
-            "group shadow-sm ring backdrop-blur transition-all hover:scale-[1.02]",
+            "group shadow-sm ring transition-shadow",
             savingsColors.card,
           )}
         >
@@ -152,7 +154,7 @@ export function Summary({ data }: { data: UserSummaryResponse }) {
             </div>
             <div
               className={cn(
-                "text-2xl font-semibold tracking-tight",
+                "text-2xl font-semibold tracking-tight tabular-nums",
                 savingsColors.text,
               )}
             >

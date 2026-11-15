@@ -17,7 +17,10 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { dayRangeToGrpc, presetToPicker } from "@/lib/date-range";
-import { type ExportTransactionsRequest } from "@/lib/objects";
+import {
+  ExportTransactionsRequestSchema,
+  type ExportTransactionsRequest,
+} from "@/lib/objects";
 import { useMutation } from "@tanstack/react-query";
 import { DateRangePicker } from "./ui/DateRangePicker";
 
@@ -57,7 +60,14 @@ export function Export() {
       toast.error("Please select a valid date range");
       return;
     }
-    exportTransactions(dayRangeToGrpc(date.from, date.to));
+    const parsed = ExportTransactionsRequestSchema.safeParse(
+      dayRangeToGrpc(date.from, date.to),
+    );
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? "Invalid date range");
+      return;
+    }
+    exportTransactions(parsed.data);
   };
 
   return (

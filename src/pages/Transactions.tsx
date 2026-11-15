@@ -1,18 +1,22 @@
+import { hashKey } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { isNotFoundError, useDataMutation, useDataQuery } from "@/api/handler";
 import { Error } from "@/components/Error";
-import { Loading } from "@/components/Loading";
+import { PageSkeleton, TableSkeleton } from "@/components/Skeletons";
 import { Export } from "@/components/pages/transactions/Export";
 import { Filters } from "@/components/pages/transactions/Filters";
 import { Form } from "@/components/pages/transactions/Form";
 import {
   Table,
   type TransactionsPagination,
+  type TransactionsSort,
 } from "@/components/pages/transactions/Table";
 import { presetToGrpc } from "@/lib/date-range";
 import {
+  SortDirection,
+  TransactionSortField,
   type Category,
   type CreateTransactionRequest,
   type DeleteRequest,
@@ -39,6 +43,8 @@ export default function Transactions() {
   const [filters, setFilters] =
     useState<GetTransactionsRequest>(initialFilters);
   const [localPageIndex, setLocalPageIndex] = useState(0);
+  const [lastPage, setLastPage] = useState<number | null>(null);
+  const [filtersKey, setFiltersKey] = useState(0);
 
   const {
     data: categories,
@@ -76,7 +82,10 @@ export default function Transactions() {
     SimpleResponse
   >("wallet", "/transaction/add", false, {
     invalidateKey: INVALIDATE,
-    onSuccess: notifySuccess,
+    onSuccess: (data) => {
+      notifySuccess(data);
+      setLastPage(null);
+    },
   });
 
   const { submit: updateAsync, isPending: isUpdating } = useDataMutation<
@@ -96,7 +105,7 @@ export default function Transactions() {
   });
 
   if (isCategoriesLoading) {
-    return <Loading content="categories" />;
+    return <PageSkeleton actions={2} filters />;
   }
   const noCategories = isNotFoundError(categoriesError);
   if ((categoriesError && !noCategories) || (!categories && !noCategories)) {
@@ -105,20 +114,12 @@ export default function Transactions() {
     );
   }
 
-  if (isTransactionsLoading) {
-    return <Loading content="transactions" />;
-  }
   const noTransactions = isNotFoundError(transactionsError);
-  if (
-    (transactionsError && !noTransactions) ||
-    (!transactions && !noTransactions)
-  ) {
-    return (
-      <Error
-        content="transactions"
-        onRetry={() => void refetchTransactions()}
-      />
-    );
+  const hasTransactionsError =
+    Boolean(transactionsError) && !noTransactions && !transactions;
+
+  if (noTransactions && filters.page > 1 && lastPage !== filters.page - 1) {
+    setLastPage(filters.page - 1);
   }
 
   const categoryList = categories?.categories ?? EMPTY_CATEGORIES;
@@ -141,6 +142,27 @@ export default function Transactions() {
   const handleFiltersChange = (next: GetTransactionsRequest) => {
     setFilters({ ...next, limit: BACKEND_PAGE_SIZE, page: 1 });
     setLocalPageIndex(0);
+    setLastPage(null);
+  };
+
+  const handleSortChange = (sort: TransactionsSort) => {
+    handleFiltersChange({
+      ...filters,
+      sort_by: sort.field,
+      sort_direction: sort.direction,
+    });
+  };
+
+  const handleResetFilters = () => {
+    const next = initialFilters();
+    if (
+      hashKey([{ ...next, limit: BACKEND_PAGE_SIZE, page: 1 }]) ===
+      hashKey([filters])
+    ) {
+      void refetchTransactions();
+    }
+    handleFiltersChange(next);
+    setFiltersKey((key) => key + 1);
   };
 
   return (
@@ -163,23 +185,45 @@ export default function Transactions() {
       </div>
 
       <Filters
+        key={filtersKey}
         filters={filters}
         onApply={handleFiltersChange}
         categories={categoryList}
       />
 
-      <Table
-        transactions={transactionList}
-        categories={categoryList}
-        backendPageSize={BACKEND_PAGE_SIZE}
-        pagination={pagination}
-        onPaginationChange={handlePaginationChange}
-        isLoading={isTransactionsFetching}
-        isUpdating={isUpdating}
-        isDeleting={isDeleting}
-        updateAsync={updateAsync}
-        onDelete={deleteTransaction}
-      />
+      {isTransactionsLoading ? (
+        <TableSkeleton />
+      ) : hasTransactionsError ? (
+        <div className="rounded-xl border border-white/10 bg-neutral-950">
+          <Error
+            content="transactions"
+            onRetry={() => void refetchTransactions()}
+            onReset={handleResetFilters}
+          />
+        </div>
+      ) : (
+        <Table
+          transactions={transactionList}
+          categories={categoryList}
+          backendPageSize={BACKEND_PAGE_SIZE}
+          pagination={pagination}
+          onPaginationChange={handlePaginationChange}
+          hasMoreOnServer={
+            transactionList.length === BACKEND_PAGE_SIZE &&
+            lastPage !== filters.page
+          }
+          sort={{
+            field: filters.sort_by ?? TransactionSortField.CreatedAt,
+            direction: filters.sort_direction ?? SortDirection.Desc,
+          }}
+          onSortChange={handleSortChange}
+          isLoading={isTransactionsFetching}
+          isUpdating={isUpdating}
+          isDeleting={isDeleting}
+          updateAsync={updateAsync}
+          onDelete={deleteTransaction}
+        />
+      )}
     </div>
   );
 }

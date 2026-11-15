@@ -1,6 +1,6 @@
 import { isNotFoundError, useDataQuery } from "@/api/handler";
 import { Error } from "@/components/Error";
-import { Loading } from "@/components/Loading";
+import { SummarySkeleton, TableSkeleton } from "@/components/Skeletons";
 import { Summary } from "@/components/pages/dashboard/Summary";
 import { Table } from "@/components/pages/transactions/Table";
 import { presetToGrpc } from "@/lib/date-range";
@@ -14,7 +14,7 @@ import {
 import { formatCurrency } from "@/lib/format";
 import BigNumber from "bignumber.js";
 
-const TODAY_LIMIT = 200;
+const TODAY_LIMIT = 50;
 const EMPTY_TRANSACTIONS: Transaction[] = [];
 
 export default function Dashboard() {
@@ -74,15 +74,15 @@ export default function Dashboard() {
       : "No movement today. Boring, but safe.";
 
   return (
-    <div className="mx-auto flex max-h-screen w-full flex-col gap-6 text-white">
-      <div className="flex items-center justify-between gap-4">
+    <div className="flex w-full flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold sm:text-3xl">Dashboard</h1>
           <p className="text-muted-foreground mt-1 text-xs">Feeling proud?</p>
         </div>
       </div>
       {isSummaryLoading ? (
-        <Loading content="user summary" />
+        <SummarySkeleton />
       ) : isSummaryError || !summary ? (
         <Error content="user summary" onRetry={() => void refetchSummary()} />
       ) : (
@@ -99,7 +99,7 @@ export default function Dashboard() {
           </span>
         </div>
         {isTransactionsLoading ? (
-          <Loading content="transactions" />
+          <TableSkeleton rows={3} />
         ) : hasTransactionsError ? (
           <Error
             content="transactions"

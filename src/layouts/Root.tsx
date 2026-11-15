@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { Outlet, useLocation, useSearchParams } from "react-router";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -61,7 +61,7 @@ export function RootLayout() {
       <SidebarProvider className="bg-neutral-950" defaultOpen={false}>
         <Navigation />
         <SidebarInset className="min-w-0">
-          <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center bg-neutral-950/50 px-4 backdrop-blur-sm">
+          <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center bg-neutral-950/80 px-4 backdrop-blur-sm">
             <SidebarTrigger
               aria-label="Toggle navigation"
               className="h-10 w-10 text-white hover:bg-neutral-800"
@@ -70,7 +70,9 @@ export function RootLayout() {
 
           <main className="flex flex-1 flex-col p-4">
             <ErrorBoundary key={pathname}>
-              <Outlet />
+              <Suspense fallback={<Loading />}>
+                <Outlet />
+              </Suspense>
             </ErrorBoundary>
           </main>
         </SidebarInset>

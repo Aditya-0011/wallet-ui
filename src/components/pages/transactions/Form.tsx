@@ -61,9 +61,6 @@ export function Form({
   categories,
 }: FormProps) {
   const [open, setOpen] = useState(false);
-  const formId = data
-    ? `transaction-form-${data.id}`
-    : "transaction-form-create";
 
   const defaultValues: UpdateTransactionRequest | CreateTransactionRequest =
     data
@@ -91,12 +88,13 @@ export function Form({
         : CreateTransactionRequestSchema,
     },
     onSubmit: async ({ value }) => {
+      const payload = { ...value, description: value.description.trim() };
       const saved = data
         ? await submit({
-            ...value,
+            ...payload,
             id: data.id,
           } as UpdateTransactionRequest)
-        : await submit(value as CreateTransactionRequest);
+        : await submit(payload as CreateTransactionRequest);
       if (!saved) return;
       reset();
       setOpen(false);
@@ -113,61 +111,61 @@ export function Form({
         }
       }}
     >
-      <form
-        id={formId}
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleSubmit();
-        }}
-        key={data?.id || "create"}
-      >
-        <DialogTrigger
-          render={
-            data ? (
-              <Button
-                aria-label={`Edit ${data.description}`}
-                variant="ghost"
-                size="icon-sm"
-                className="rounded-md text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:ring hover:ring-amber-500"
-              />
-            ) : (
-              <Button className="flex items-center gap-1.5 rounded-md bg-amber-500 hover:bg-neutral-950 hover:text-amber-500 hover:ring hover:ring-amber-500" />
-            )
-          }
-        >
-          {data ? (
-            <Edit2 aria-hidden="true" />
+      <DialogTrigger
+        render={
+          data ? (
+            <Button
+              aria-label={`Edit ${data.description}`}
+              variant="ghost"
+              size="icon-sm"
+              className="rounded-md text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:ring hover:ring-amber-500"
+            />
           ) : (
-            <>
-              <Plus aria-hidden="true" />
-              Add
-            </>
-          )}
-        </DialogTrigger>
-        <DialogContent
-          className="border border-white bg-neutral-950"
-          showCloseButton={false}
+            <Button className="flex items-center gap-1.5 rounded-md bg-amber-500 hover:bg-neutral-950 hover:text-amber-500 hover:ring hover:ring-amber-500" />
+          )
+        }
+      >
+        {data ? (
+          <Edit2 aria-hidden="true" />
+        ) : (
+          <>
+            <Plus aria-hidden="true" />
+            Add
+          </>
+        )}
+      </DialogTrigger>
+      <DialogContent
+        className="border border-white bg-neutral-950"
+        showCloseButton={false}
+      >
+        <DialogHeader>
+          <DialogTitle>
+            {data ? (
+              <>
+                Update{" "}
+                <span className="wrap-anywhere text-amber-500">
+                  {data.description}
+                </span>
+              </>
+            ) : (
+              <>
+                Add <span className="text-amber-500">transaction</span>
+              </>
+            )}
+          </DialogTitle>
+          <DialogDescription>
+            {data
+              ? "Let's hope you are not fixing any typos!"
+              : "Try not to put any typos!"}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="grid gap-6"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleSubmit();
+          }}
         >
-          <DialogHeader>
-            <DialogTitle>
-              {data ? (
-                <>
-                  Update{" "}
-                  <span className="text-amber-500">{data.description}</span>
-                </>
-              ) : (
-                <>
-                  Add <span className="text-amber-500">transaction</span>
-                </>
-              )}
-            </DialogTitle>
-            <DialogDescription>
-              {data
-                ? "Let's hope you are not fixing any typos!"
-                : "Try not to put any typos!"}
-            </DialogDescription>
-          </DialogHeader>
-
           <FieldGroup className="mt-1">
             <FormField
               name="amount.value"
@@ -306,12 +304,11 @@ export function Form({
                       value={field.state.value}
                       autoComplete="off"
                       onBlur={field.handleBlur}
-                      onChange={(e) =>
-                        field.handleChange(e.target.value.trim())
-                      }
+                      onChange={(e) => field.handleChange(e.target.value)}
                       aria-invalid={isInvalid}
                       disabled={isCreating || isUpdating}
                       type="text"
+                      maxLength={255}
                       required
                       className="border-input rounded-md border bg-neutral-950 focus-visible:border-amber-500 focus-visible:ring-0 focus-visible:ring-amber-500"
                     />
@@ -339,7 +336,6 @@ export function Form({
                 }
               />
               <Button
-                form={formId}
                 type="submit"
                 disabled={isCreating || isUpdating}
                 className="flex items-center gap-1.5 rounded-md bg-neutral-950 text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:inset-ring hover:ring-amber-500"
@@ -349,8 +345,8 @@ export function Form({
               </Button>
             </Field>
           </DialogFooter>
-        </DialogContent>
-      </form>
+        </form>
+      </DialogContent>
     </Dialog>
   );
 }

@@ -30,10 +30,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  CATEGORY_ICON_MAX_LENGTH,
+  CATEGORY_NAME_MAX_LENGTH,
+  iconLength,
   CategoryType,
   CreateCategoryRequestSchema,
   UpdateCategoryRequestSchema,
   getCategoryTypeLabel,
+  isValidCategoryIcon,
   type Category,
   type CreateCategoryRequest,
   type UpdateCategoryRequest,
@@ -41,6 +45,9 @@ import {
 import { useForm } from "@tanstack/react-form";
 import { Edit2, Plus, Save, Smile, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+
+const SUPPORTED_EMOJI_VERSION = 13;
 
 type FormProps =
   | {
@@ -57,7 +64,6 @@ type FormProps =
     };
 
 export function Form({ data, isCreating, isUpdating, submit }: FormProps) {
-  const formId = data ? `category-form-${data.id}` : "category-form-create";
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [open, setOpen] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
@@ -126,58 +132,60 @@ export function Form({ data, isCreating, isUpdating, submit }: FormProps) {
         }
       }}
     >
-      <form
-        id={formId}
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleSubmit();
-        }}
-        key={data?.id || "create"}
-      >
-        <DialogTrigger
-          render={
-            data ? (
-              <Button
-                aria-label={`Edit ${data.name}`}
-                variant="ghost"
-                size="icon-sm"
-                className="rounded-md text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:ring hover:ring-amber-500"
-              />
-            ) : (
-              <Button className="rounded-md bg-amber-500 hover:bg-neutral-950 hover:text-amber-500 hover:ring hover:ring-amber-500" />
-            )
-          }
-        >
-          {data ? (
-            <Edit2 aria-hidden="true" />
+      <DialogTrigger
+        render={
+          data ? (
+            <Button
+              aria-label={`Edit ${data.name}`}
+              variant="ghost"
+              size="icon-sm"
+              className="rounded-md text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:ring hover:ring-amber-500"
+            />
           ) : (
-            <>
-              <Plus aria-hidden="true" /> Add
-            </>
-          )}
-        </DialogTrigger>
-        <DialogContent
-          className="border border-white bg-neutral-950"
-          showCloseButton={false}
+            <Button className="rounded-md bg-amber-500 hover:bg-neutral-950 hover:text-amber-500 hover:ring hover:ring-amber-500" />
+          )
+        }
+      >
+        {data ? (
+          <Edit2 aria-hidden="true" />
+        ) : (
+          <>
+            <Plus aria-hidden="true" /> Add
+          </>
+        )}
+      </DialogTrigger>
+      <DialogContent
+        className="border border-white bg-neutral-950"
+        showCloseButton={false}
+      >
+        <DialogHeader>
+          <DialogTitle>
+            {data ? (
+              <>
+                Update{" "}
+                <span className="wrap-anywhere text-amber-500">
+                  {data.name}
+                </span>
+              </>
+            ) : (
+              <>
+                Add <span className="text-amber-500">category</span>
+              </>
+            )}
+          </DialogTitle>
+          <DialogDescription>
+            {data
+              ? "Let's hope you are not fixing any typos!"
+              : "Try not to put any typos!"}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="grid gap-6"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleSubmit();
+          }}
         >
-          <DialogHeader>
-            <DialogTitle>
-              {data ? (
-                <>
-                  Update <span className="text-amber-500">{data.name}</span>
-                </>
-              ) : (
-                <>
-                  Add <span className="text-amber-500">category</span>
-                </>
-              )}
-            </DialogTitle>
-            <DialogDescription>
-              {data
-                ? "Let's hope you are not fixing any typos!"
-                : "Try not to put any typos!"}
-            </DialogDescription>
-          </DialogHeader>
           <FieldGroup className="mt-1">
             <FormField
               name="name"
@@ -198,6 +206,7 @@ export function Form({ data, isCreating, isUpdating, submit }: FormProps) {
                       aria-invalid={isInvalid}
                       disabled={isCreating || isUpdating}
                       type="text"
+                      maxLength={CATEGORY_NAME_MAX_LENGTH}
                       required
                       className="border-input rounded-md border bg-neutral-950 focus-visible:border-amber-500 focus-visible:ring-0 focus-visible:ring-amber-500"
                     />
@@ -308,10 +317,21 @@ export function Form({ data, isCreating, isUpdating, submit }: FormProps) {
                         <EmojiPicker
                           className="h-full w-full"
                           columns={13}
+                          emojiVersion={SUPPORTED_EMOJI_VERSION}
                           onEmojiSelect={(emojiData) => {
-                            field.handleChange(
-                              (field.state.value || "") + emojiData.emoji,
-                            );
+                            if (!isValidCategoryIcon(emojiData.emoji)) {
+                              toast.error(
+                                "That emoji is not supported, pick another one",
+                              );
+                              return;
+                            }
+                            const next =
+                              (field.state.value || "") + emojiData.emoji;
+                            if (iconLength(next) > CATEGORY_ICON_MAX_LENGTH) {
+                              toast.error("Icon is too long");
+                              return;
+                            }
+                            field.handleChange(next);
                           }}
                         >
                           <EmojiPickerSearch />
@@ -344,7 +364,6 @@ export function Form({ data, isCreating, isUpdating, submit }: FormProps) {
                 }
               />
               <Button
-                form={formId}
                 type="submit"
                 disabled={isCreating || isUpdating}
                 className="flex items-center gap-1.5 rounded-md bg-neutral-950 text-amber-500 hover:bg-amber-500/10 hover:text-amber-600 hover:inset-ring hover:ring-amber-500"
@@ -354,8 +373,8 @@ export function Form({ data, isCreating, isUpdating, submit }: FormProps) {
               </Button>
             </Field>
           </DialogFooter>
-        </DialogContent>
-      </form>
+        </form>
+      </DialogContent>
     </Dialog>
   );
 }

@@ -41,7 +41,7 @@ function handleError(error: unknown, meta: RequestMeta | undefined) {
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      gcTime: 0,
+      gcTime: 5 * 60 * 1000,
       staleTime: 5 * 60 * 1000,
       retry: shouldRetry,
     },

@@ -5,9 +5,10 @@ import { Button } from "./ui/button";
 type ErrorProps = {
   content: string;
   onRetry?: () => void;
+  onReset?: () => void;
 };
 
-export function Error({ content, onRetry }: ErrorProps) {
+export function Error({ content, onRetry, onReset }: ErrorProps) {
   return (
     <div
       role="alert"
@@ -36,6 +37,11 @@ export function Error({ content, onRetry }: ErrorProps) {
         >
           Retry
         </Button>
+        {onReset && (
+          <Button variant="outline" onClick={onReset}>
+            Reset filters
+          </Button>
+        )}
       </div>
     </div>
   );

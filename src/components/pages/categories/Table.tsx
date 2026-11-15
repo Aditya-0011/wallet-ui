@@ -65,6 +65,8 @@ import {
 import { useState } from "react";
 import { grpcTimeMillis } from "@/lib/time";
 
+const PAGE_SIZE = 10;
+
 const fuzzyFilter: FilterFn<typeof features, Category> = (
   row,
   columnId,
@@ -408,7 +410,7 @@ const columns = helper.columns([
     cell: ({ row, table }) => {
       const meta = table.options.meta!;
       return (
-        <div className="flex justify-end gap-1 md:pr-2">
+        <div className="flex justify-end gap-1 md:pr-2 pointer-coarse:gap-2">
           <Form
             data={row.original}
             isUpdating={meta.isUpdating}
@@ -438,6 +440,7 @@ export function Table({
     sorting: SortingState;
     columnFilters: ColumnFiltersState;
   }>({ sorting: [], columnFilters: [] });
+  const [pageIndex, setPageIndex] = useState(0);
   const [columnVisibility, setColumnVisibility] =
     useState<ColumnVisibilityState>({
       createdAt: true,
@@ -463,7 +466,8 @@ export function Table({
         sorting:
           typeof updater === "function" ? updater(prev.sorting) : updater,
       })),
-    onColumnFiltersChange: (updater) =>
+    onColumnFiltersChange: (updater) => {
+      setPageIndex(0);
       setSortAndFilter((prev) => {
         const nextFilters =
           typeof updater === "function" ? updater(prev.columnFilters) : updater;
@@ -476,25 +480,31 @@ export function Table({
               ? [{ id: "name", desc: false }]
               : prev.sorting,
         };
-      }),
+      });
+    },
     onColumnVisibilityChange: setColumnVisibility,
+    onPaginationChange: (updater) => {
+      const current = { pageIndex, pageSize: PAGE_SIZE };
+      const next = typeof updater === "function" ? updater(current) : updater;
+      setPageIndex(next.pageIndex);
+    },
     autoResetPageIndex: false,
     state: {
       sorting,
       columnFilters,
       columnVisibility,
-    },
-    initialState: {
-      pagination: {
-        pageSize: 10,
-        pageIndex: 0,
-      },
+      pagination: { pageIndex, pageSize: PAGE_SIZE },
     },
   });
 
+  const lastPageIndex = Math.max(0, table.getPageCount() - 1);
+  if (pageIndex > lastPageIndex) {
+    setPageIndex(lastPageIndex);
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-xl border border-white/10 bg-neutral-950/20 shadow-sm backdrop-blur">
+      <div className="rounded-xl border border-white/10 bg-neutral-950 shadow-sm">
         <TableTag>
           <colgroup>
             <col className="w-[10%]" />

@@ -12,13 +12,13 @@ export function Loading({ content }: { content?: string } = {}) {
       <div
         className={`flex h-20 w-20 items-center justify-center rounded-full shadow-[0_0_30px_-10px] ring-1 ${
           isBuilding
-            ? "bg-sky-500/10 shadow-sky-500/20 ring-sky-500/20"
+            ? "bg-white/5 shadow-white/10 ring-white/15"
             : "bg-amber-500/10 shadow-amber-500/20 ring-amber-500/20"
         }`}
         aria-hidden="true"
       >
         {isBuilding ? (
-          <Cpu className="h-10 w-10 animate-pulse text-sky-500 motion-reduce:animate-none" />
+          <Cpu className="h-10 w-10 animate-pulse text-neutral-300 motion-reduce:animate-none" />
         ) : (
           <Loader2 className="h-10 w-10 animate-spin text-amber-500 motion-reduce:animate-none" />
         )}

@@ -8,7 +8,7 @@ The financial dashboard for the platform.
 
 ## Overview
 
-The wallet UI acts as the financial dashboard interface for the platform. It interacts securely with the `wallet` gRPC backend via the API gateway to let you manage balances, track transaction histories, and oversee the platform's financial operations.
+The wallet UI acts as the financial dashboard interface for the platform. It talks to the `wallet` gRPC backend through the API gateway to record income and expenses, organise them into categories, review edit history, and export transactions.
 
 ## Architecture
 
@@ -36,7 +36,7 @@ This section outlines the capabilities of the wallet UI.
 - **Performance**: Bootstrapped with Vite and React 19 Compiler plugins for rendering performance.
 - **Design**: Built using `@base-ui/react` and Tailwind CSS, with a dark-only theme.
 - **Reactive data**: Uses TanStack Query to provide caching, background data synchronization, and invalidation after mutations.
-- **Type-safe validation**: Forms and API responses validate strictly on the client side using `zod`.
+- **Type-safe validation**: Form input is validated on the client with `zod` before it is sent. API responses are typed but not validated at runtime.
 - **Financial Precision**: Relies on `bignumber.js` to ensure zero floating-point precision loss when calculating and rendering transaction balances.
 
 ## Platform routing
@@ -44,7 +44,7 @@ This section outlines the capabilities of the wallet UI.
 The wallet dashboard is structured around these core financial entities:
 
 - `/dashboard`: The high-level overview of balances and financial health
-- `/transactions`: Add, edit, and track the detailed history of all transactions
+- `/transactions`: Add, edit, filter, sort (server-side, by created or updated date) and export transactions. Exports cover at most 366 days
 - `/categories`: Manage the taxonomy of income and spending categories
 
 ## Getting started
@@ -57,13 +57,13 @@ This section explains how to run the wallet UI locally.
 
 ### Configuration
 
-Export these variables directly in your `.env` file:
+Copy `.env.sample` to `.env` and fill in these variables:
 
-| Variable              | Description                                              | Required |
-| :-------------------- | :------------------------------------------------------- | :------: |
-| `VITE_AUTH_API_URL`   | Endpoint for the public auth API routes                  | **Yes**  |
-| `VITE_WALLET_API_URL` | Endpoint for the public wallet API routes                | **Yes**  |
-| `VITE_CONSOLE_URL`    | Base URL of the deployed console UI                      | **Yes**  |
+| Variable              | Description                               | Required |
+| :-------------------- | :---------------------------------------- | :------: |
+| `VITE_AUTH_API_URL`   | Endpoint for the public auth API routes   | **Yes**  |
+| `VITE_WALLET_API_URL` | Endpoint for the public wallet API routes | **Yes**  |
+| `VITE_CONSOLE_URL`    | Base URL of the deployed console UI       | **Yes**  |
 
 ### Running locally
 
@@ -72,6 +72,13 @@ Install dependencies and start the development server:
 ```bash
 bun install
 bun run dev
+```
+
+### Lint and type-check
+
+```bash
+bun run lint
+bunx --bun tsc -b
 ```
 
 ### Build for production

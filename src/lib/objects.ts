@@ -7,6 +7,13 @@ export const AMOUNT_PATTERN = /^\d{1,13}(\.\d{1,2})?$/;
 export const CATEGORY_ICON_PATTERN =
   /^(?:[\u{1F300}-\u{1FAD6}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}]|\u{200D}|\u{FE0F})+$/u;
 
+export const CATEGORY_ICON_MAX_LENGTH = 20;
+export const CATEGORY_NAME_MAX_LENGTH = 100;
+
+export function iconLength(icon: string): number {
+  return [...icon].length;
+}
+
 export function isValidCategoryIcon(icon: string): boolean {
   return CATEGORY_ICON_PATTERN.test(icon.trim());
 }
@@ -119,10 +126,18 @@ export const CreateCategoryRequestSchema = z.object({
     .string()
     .trim()
     .min(1, { error: "Name is required" })
-    .max(255, { error: "Name can be at most 255 characters long" }),
-  icon: z.string().trim().regex(CATEGORY_ICON_PATTERN, {
-    error: "Pick an emoji the server supports",
-  }),
+    .max(CATEGORY_NAME_MAX_LENGTH, {
+      error: `Name can be at most ${CATEGORY_NAME_MAX_LENGTH} characters long`,
+    }),
+  icon: z
+    .string()
+    .trim()
+    .regex(CATEGORY_ICON_PATTERN, {
+      error: "Pick an emoji the server supports",
+    })
+    .refine((icon) => iconLength(icon) <= CATEGORY_ICON_MAX_LENGTH, {
+      error: `Icon can be at most ${CATEGORY_ICON_MAX_LENGTH} characters long`,
+    }),
   type: CategoryTypeSchema,
 });
 export type CreateCategoryRequest = z.infer<typeof CreateCategoryRequestSchema>;
@@ -133,11 +148,18 @@ export const UpdateCategoryRequestSchema = z.object({
     .string()
     .trim()
     .min(1, { error: "Name is required" })
-    .max(255, { error: "Name can be at most 255 characters long" }),
-  icon: z.string().trim().regex(CATEGORY_ICON_PATTERN, {
-    error: "Pick an emoji the server supports",
-  }),
-
+    .max(CATEGORY_NAME_MAX_LENGTH, {
+      error: `Name can be at most ${CATEGORY_NAME_MAX_LENGTH} characters long`,
+    }),
+  icon: z
+    .string()
+    .trim()
+    .regex(CATEGORY_ICON_PATTERN, {
+      error: "Pick an emoji the server supports",
+    })
+    .refine((icon) => iconLength(icon) <= CATEGORY_ICON_MAX_LENGTH, {
+      error: `Icon can be at most ${CATEGORY_ICON_MAX_LENGTH} characters long`,
+    }),
   type: CategoryTypeSchema,
 });
 export type UpdateCategoryRequest = z.infer<typeof UpdateCategoryRequestSchema>;
@@ -161,8 +183,8 @@ export type GetTransactionsResponse = z.infer<
 
 export const TransactionsUpdateHistorySchema = z.object({
   id: z.number(),
-  previous_category: CategorySummarySchema,
-  current_category: CategorySummarySchema,
+  previous_category: CategorySummarySchema.nullish(),
+  current_category: CategorySummarySchema.nullish(),
   previous_description: z.string(),
   current_description: z.string(),
   previous_amount: GrpcDecimalSchema,
@@ -187,6 +209,35 @@ export type GetTransactionsUpdateHistoryResponse = z.infer<
   typeof GetTransactionsUpdateHistoryResponseSchema
 >;
 
+export const TransactionSortField = {
+  Unspecified: 0,
+  CreatedAt: 1,
+  UpdatedAt: 2,
+} as const;
+
+export type TransactionSortField =
+  (typeof TransactionSortField)[keyof typeof TransactionSortField];
+
+export const TransactionSortFieldSchema = z.union([
+  z.literal(TransactionSortField.Unspecified),
+  z.literal(TransactionSortField.CreatedAt),
+  z.literal(TransactionSortField.UpdatedAt),
+]);
+
+export const SortDirection = {
+  Unspecified: 0,
+  Desc: 1,
+  Asc: 2,
+} as const;
+
+export type SortDirection = (typeof SortDirection)[keyof typeof SortDirection];
+
+export const SortDirectionSchema = z.union([
+  z.literal(SortDirection.Unspecified),
+  z.literal(SortDirection.Desc),
+  z.literal(SortDirection.Asc),
+]);
+
 export const GetTransactionsRequestSchema = z
   .object({
     limit: z.number().gt(0, { error: "Invalid limit" }),
@@ -195,6 +246,8 @@ export const GetTransactionsRequestSchema = z
     category_id: z.number().gt(0, { error: "Invalid category" }).optional(),
     start_date: GrpcTimeSchema.optional(),
     end_date: GrpcTimeSchema.optional(),
+    sort_by: TransactionSortFieldSchema.optional(),
+    sort_direction: SortDirectionSchema.optional(),
   })
   .refine(
     (x) => {
@@ -225,6 +278,8 @@ export type CreateTransactionRequest = z.infer<
   typeof CreateTransactionRequestSchema
 >;
 
+export const EXPORT_MAX_RANGE_MS = 366 * 24 * 60 * 60 * 1000;
+
 export const ExportTransactionsRequestSchema = z
   .object({
     start_date: GrpcTimeSchema,
@@ -237,6 +292,15 @@ export const ExportTransactionsRequestSchema = z
     },
     {
       error: "end date must be after or equal to start date",
+      path: ["end_date"],
+    },
+  )
+  .refine(
+    (x) =>
+      grpcTimeMillis(x.end_date) - grpcTimeMillis(x.start_date) <=
+      EXPORT_MAX_RANGE_MS,
+    {
+      error: "Export range can be at most 366 days",
       path: ["end_date"],
     },
   );

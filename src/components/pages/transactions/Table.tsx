@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/tooltip";
 import {
   CategoryType,
+  SortDirection,
+  TransactionSortField,
   type Category,
   type DeleteRequest,
   type Transaction,
@@ -26,12 +28,10 @@ import {
   columnVisibilityFeature,
   createColumnHelper,
   createPaginatedRowModel,
-  createSortedRowModel,
   flexRender,
   metaHelper,
   rowPaginationFeature,
   rowSelectionFeature,
-  rowSortingFeature,
   tableFeatures,
   useTable,
   type ColumnVisibilityState,
@@ -43,6 +43,7 @@ import {
   ArrowUpDown,
   ChevronLeft,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 import { useState } from "react";
 import { Form } from "./Form";
@@ -50,6 +51,11 @@ import { Table as HistoryTable } from "./history/Table";
 import { grpcTimeMillis } from "@/lib/time";
 
 const CLIENT_PAGE_SIZE = 25;
+
+export type TransactionsSort = {
+  field: TransactionSortField;
+  direction: SortDirection;
+};
 
 export type TransactionsPagination = {
   backendPage: number;
@@ -67,6 +73,9 @@ type TransactionsTableFullProps = TransactionsTableBaseProps & {
   backendPageSize: number;
   pagination: TransactionsPagination;
   onPaginationChange: (next: TransactionsPagination) => void;
+  hasMoreOnServer: boolean;
+  sort: TransactionsSort;
+  onSortChange: (next: TransactionsSort) => void;
   isUpdating: boolean;
   isDeleting: boolean;
   updateAsync: (req: UpdateTransactionRequest) => Promise<boolean>;
@@ -86,6 +95,8 @@ type TransactionsTableMeta = {
   updateAsync: (req: UpdateTransactionRequest) => Promise<boolean>;
   onDelete: (req: DeleteRequest) => void;
   categories: Category[];
+  sort: TransactionsSort;
+  onSortChange: (next: TransactionsSort) => void;
 };
 
 const getRowId = (row: Transaction) => String(row.id);
@@ -103,11 +114,48 @@ const features = tableFeatures({
   rowSelectionFeature,
   rowPaginationFeature,
   paginatedRowModel: createPaginatedRowModel(),
-  rowSortingFeature,
-  sortedRowModel: createSortedRowModel(),
 });
 
 const helper = createColumnHelper<typeof features, Transaction>();
+
+function SortButton({
+  field,
+  label,
+  meta,
+  className,
+}: {
+  field: TransactionSortField;
+  label: string;
+  meta: TransactionsTableMeta | undefined;
+  className?: string;
+}) {
+  if (!meta) {
+    return <span className={cn("px-2", className)}>{label}</span>;
+  }
+  const active = meta.sort.field === field;
+  const ascending = active && meta.sort.direction === SortDirection.Asc;
+  const Icon = !active ? ArrowUpDown : ascending ? ArrowUp : ArrowDown;
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className={cn("-ml-3 h-8 transition-colors hover:bg-white/5", className)}
+      aria-label={`Sort by ${label.toLowerCase()} ${
+        active && !ascending ? "oldest first" : "newest first"
+      }`}
+      onClick={() =>
+        meta.onSortChange({
+          field,
+          direction:
+            active && !ascending ? SortDirection.Asc : SortDirection.Desc,
+        })
+      }
+    >
+      <span>{label}</span>
+      <Icon className="ml-2 h-4 w-4" aria-hidden="true" />
+    </Button>
+  );
+}
 
 const columns = helper.columns([
   helper.accessor("description", {
@@ -124,12 +172,29 @@ const columns = helper.columns([
     ),
   }),
   helper.accessor("amount", {
-    header: () => <div className="md:pl-4">Amount</div>,
-    cell: ({ row }) => (
-      <div className="font-medium md:pl-4">
-        {formatCurrency(row.original.amount.value)}
-      </div>
-    ),
+    header: () => <div className="pr-2 text-right md:pr-4">Amount</div>,
+    cell: ({ row }) => {
+      const type = row.original.category.type;
+      const sign =
+        type === CategoryType.Income
+          ? "+"
+          : type === CategoryType.Expense
+            ? "\u2212"
+            : "";
+      return (
+        <div className="pr-2 text-right font-medium tabular-nums md:pr-4">
+          <span className="sr-only">
+            {type === CategoryType.Income
+              ? "Income "
+              : type === CategoryType.Expense
+                ? "Expense "
+                : ""}
+          </span>
+          <span aria-hidden="true">{sign}</span>
+          {formatCurrency(row.original.amount.value)}
+        </div>
+      );
+    },
   }),
   helper.accessor("category", {
     header: () => <div className="text-center">Category</div>,
@@ -153,24 +218,14 @@ const columns = helper.columns([
   }),
   helper.accessor((row) => grpcTimeMillis(row.created_at), {
     id: "createdAt",
-    header: ({ column, table }) => {
+    header: ({ table }) => {
       return (
         <div className="flex items-center justify-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="-ml-3 h-8 transition-colors hover:bg-white/5"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            <span>Created</span>
-            {column.getIsSorted() === "asc" ? (
-              <ArrowUp className="ml-2 h-4 w-4" aria-hidden="true" />
-            ) : column.getIsSorted() === "desc" ? (
-              <ArrowDown className="ml-2 h-4 w-4" aria-hidden="true" />
-            ) : (
-              <ArrowUpDown className="ml-2 h-4 w-4" aria-hidden="true" />
-            )}
-          </Button>
+          <SortButton
+            field={TransactionSortField.CreatedAt}
+            label="Created"
+            meta={table.options.meta as TransactionsTableMeta | undefined}
+          />
           <Button
             variant="ghost"
             size="icon"
@@ -202,24 +257,15 @@ const columns = helper.columns([
   }),
   helper.accessor((row) => grpcTimeMillis(row.updated_at), {
     id: "updatedAt",
-    header: ({ column, table }) => {
+    header: ({ table }) => {
       return (
         <div className="flex items-center justify-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="-ml-3 h-8 text-amber-500 transition-colors hover:bg-white/5 hover:text-amber-400"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            <span>Updated</span>
-            {column.getIsSorted() === "asc" ? (
-              <ArrowUp className="ml-2 h-4 w-4" aria-hidden="true" />
-            ) : column.getIsSorted() === "desc" ? (
-              <ArrowDown className="ml-2 h-4 w-4" aria-hidden="true" />
-            ) : (
-              <ArrowUpDown className="ml-2 h-4 w-4" aria-hidden="true" />
-            )}
-          </Button>
+          <SortButton
+            field={TransactionSortField.UpdatedAt}
+            label="Updated"
+            meta={table.options.meta as TransactionsTableMeta | undefined}
+            className="text-amber-500 hover:text-amber-400"
+          />
           <Button
             variant="ghost"
             size="icon"
@@ -275,7 +321,7 @@ const columns = helper.columns([
       const isUpdatedAtVisible = table.getColumn("updatedAt")?.getIsVisible();
 
       return (
-        <div className="flex items-center justify-end gap-1 pr-1 md:gap-2 md:pr-4">
+        <div className="flex items-center justify-end gap-1 pr-1 md:gap-2 md:pr-4 pointer-coarse:gap-2">
           {isUpdated && (
             <div className={cn(!isUpdatedAtVisible && "md:hidden")}>
               <HistoryTable transaction={row.original} />
@@ -340,6 +386,8 @@ export function Table(props: TransactionsTableProps) {
         updateAsync: props.updateAsync,
         onDelete: props.onDelete,
         categories: props.categories,
+        sort: props.sort,
+        onSortChange: props.onSortChange,
       };
 
   const paginationState = { pageIndex, pageSize: CLIENT_PAGE_SIZE };
@@ -365,13 +413,13 @@ export function Table(props: TransactionsTableProps) {
   });
 
   const backendPage = isReadonly ? 1 : props.pagination.backendPage;
-  const hasMoreOnServer =
-    !isReadonly && props.transactions.length === props.backendPageSize;
+  const hasMoreOnServer = !isReadonly && props.hasMoreOnServer;
+  const isBusy = !isReadonly && props.isLoading;
   const lastLocalPageOfFullBackendPage =
     (isReadonly ? 0 : Math.ceil(props.backendPageSize / CLIENT_PAGE_SIZE)) - 1;
 
-  const canNext = table.getCanNextPage() || hasMoreOnServer;
-  const canPrev = table.getCanPreviousPage() || backendPage > 1;
+  const canNext = !isBusy && (table.getCanNextPage() || hasMoreOnServer);
+  const canPrev = !isBusy && (table.getCanPreviousPage() || backendPage > 1);
 
   const handleNextPage = () => {
     if (table.getCanNextPage()) {
@@ -391,7 +439,13 @@ export function Table(props: TransactionsTableProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-xl border border-white/10 bg-neutral-950/20 shadow-sm backdrop-blur">
+      <div
+        aria-busy={isBusy}
+        className={cn(
+          "rounded-xl border border-white/10 bg-neutral-950 shadow-sm transition-opacity",
+          isBusy && "opacity-60",
+        )}
+      >
         <TableTag>
           <colgroup>
             <col className={isReadonly ? "w-[30%]" : "w-[30%]"} />
@@ -475,14 +529,24 @@ export function Table(props: TransactionsTableProps) {
                   colSpan={table.getAllColumns().length}
                   className="h-24 text-center"
                 >
-                  {props.isLoading ? "Loading..." : "No transactions found."}
+                  {props.isLoading
+                    ? "Loading..."
+                    : backendPage > 1
+                      ? "No more transactions."
+                      : "No transactions found."}
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </TableTag>
       </div>
-      <div className="flex items-center justify-end space-x-2">
+      <div className="flex items-center justify-end gap-2">
+        {isBusy && (
+          <Loader2
+            className="text-muted-foreground size-4 animate-spin motion-reduce:animate-none"
+            aria-hidden="true"
+          />
+        )}
         <Button
           variant="outline"
           size="sm"

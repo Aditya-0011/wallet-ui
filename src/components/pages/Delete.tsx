@@ -49,7 +49,7 @@ export function Delete<T extends string | number>({
       >
         <Trash2 aria-hidden="true" />
       </AlertDialogTrigger>
-      <AlertDialogContent className="min-w-fit rounded-lg border border-red-500 bg-neutral-950">
+      <AlertDialogContent className="rounded-lg border border-red-500 bg-neutral-950">
         <AlertDialogHeader>
           <AlertDialogTitle>
             How <span className="font-medium text-emerald-500/50">high</span>{" "}
@@ -57,7 +57,12 @@ export function Delete<T extends string | number>({
           </AlertDialogTitle>
           <AlertDialogDescription>
             {description}{" "}
-            <span className="font-medium text-red-500">{name}</span>.
+            <span
+              title={name}
+              className="line-clamp-3 font-medium wrap-anywhere text-red-500"
+            >
+              {name}
+            </span>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
